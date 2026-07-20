@@ -17,6 +17,31 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   low: 'Baja',
 };
 
+function formatDueDate(isoString: string): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return 'Vencida';
+  if (diffDays === 0) return 'Hoy';
+  if (diffDays === 1) return 'Mañana';
+  if (diffDays < 7) return `En ${diffDays} días`;
+  return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+}
+
+function getDueDateColor(isoString: string): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return '#EF4444';
+  if (diffDays <= 1) return '#EF4444';
+  if (diffDays <= 3) return '#F59E0B';
+  return '#22C55E';
+}
+
 interface Props {
   task: Task;
 }
@@ -28,6 +53,7 @@ export function TaskItem({ task }: Props) {
   const rowOpacity = useRef(new Animated.Value(1)).current;
 
   const priorityColor = PRIORITY_COLORS[task.priority];
+  const isUniversity = task.source === 'university';
 
   const handleToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -62,9 +88,7 @@ export function TaskItem({ task }: Props) {
       toValue: 0,
       duration: 200,
       useNativeDriver: true,
-    }).start(() => {
-      deleteTask(task.id);
-    });
+    }).start(() => deleteTask(task.id));
   };
 
   return (
@@ -115,27 +139,72 @@ export function TaskItem({ task }: Props) {
         >
           {task.title}
         </Text>
+
         {task.note ? (
           <Text
-            style={[
-              styles.note,
-              { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-            ]}
+            style={[styles.note, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}
             numberOfLines={1}
           >
             {task.note}
           </Text>
         ) : null}
-        <View style={[styles.badge, { backgroundColor: priorityColor + '18', borderRadius: 4 }]}>
-          <View style={[styles.badgeDot, { backgroundColor: priorityColor }]} />
-          <Text
-            style={[
-              styles.badgeText,
-              { color: priorityColor, fontFamily: 'Inter_600SemiBold' },
-            ]}
+
+        <View style={styles.metaRow}>
+          {/* Priority badge */}
+          <View
+            style={[styles.badge, { backgroundColor: priorityColor + '18', borderRadius: 4 }]}
           >
-            {PRIORITY_LABELS[task.priority]}
-          </Text>
+            <View style={[styles.badgeDot, { backgroundColor: priorityColor }]} />
+            <Text
+              style={[styles.badgeText, { color: priorityColor, fontFamily: 'Inter_600SemiBold' }]}
+            >
+              {PRIORITY_LABELS[task.priority]}
+            </Text>
+          </View>
+
+          {/* Course name badge (university tasks) */}
+          {isUniversity && task.courseName ? (
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: colors.primary + '14', borderRadius: 4 },
+              ]}
+            >
+              <Feather name="book" size={9} color={colors.primary} />
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: colors.primary, fontFamily: 'Inter_500Medium' },
+                ]}
+                numberOfLines={1}
+              >
+                {task.courseName}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Due date badge */}
+          {task.dueDate && !task.completed ? (
+            <View
+              style={[
+                styles.badge,
+                {
+                  backgroundColor: getDueDateColor(task.dueDate) + '18',
+                  borderRadius: 4,
+                },
+              ]}
+            >
+              <Feather name="clock" size={9} color={getDueDateColor(task.dueDate)} />
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: getDueDateColor(task.dueDate), fontFamily: 'Inter_500Medium' },
+                ]}
+              >
+                {formatDueDate(task.dueDate)}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -159,14 +228,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  priorityStripe: {
-    width: 3,
-    alignSelf: 'stretch',
-  },
-  checkArea: {
-    padding: 14,
-    paddingRight: 10,
-  },
+  priorityStripe: { width: 3, alignSelf: 'stretch' },
+  checkArea: { padding: 14, paddingRight: 10 },
   circle: {
     width: 22,
     height: 22,
@@ -180,35 +243,27 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     gap: 4,
   },
-  title: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  note: {
-    fontSize: 13,
-    lineHeight: 17,
+  title: { fontSize: 15, lineHeight: 20 },
+  note: { fontSize: 13, lineHeight: 17 },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginTop: 3,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     paddingHorizontal: 6,
     paddingVertical: 2,
     gap: 4,
-    marginTop: 2,
   },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
+  badgeDot: { width: 6, height: 6, borderRadius: 3 },
   badgeText: {
     fontSize: 10,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
+    maxWidth: 120,
   },
-  deleteBtn: {
-    padding: 14,
-    paddingLeft: 8,
-  },
+  deleteBtn: { padding: 14, paddingLeft: 8 },
 });

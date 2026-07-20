@@ -1,0 +1,1 @@
+- [University Moodle sync](university-sync.md) — UTXicotepec campus uses Moodle with web services disabled; auth via form-POST + AJAX sesskey, not REST token.

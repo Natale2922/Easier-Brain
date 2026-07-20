@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: university
+    description: University Moodle platform integration
 paths:
   /healthz:
     get:
@@ -24,6 +26,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /university/login:
+    post:
+      operationId: universityLogin
+      tags: [university]
+      summary: Login to the university Moodle platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UniversityCredentials"
+      responses:
+        "200":
+          description: Login result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UniversityLoginResult"
+
+  /university/tasks:
+    get:
+      operationId: getUniversityTasks
+      tags: [university]
+      summary: Get upcoming assignments from the university Moodle platform
+      parameters:
+        - name: sessionToken
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: sesskey
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of upcoming university tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UniversityTaskList"
+        "401":
+          description: Session expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UniversityError"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +86,61 @@ components:
       required:
         - status
 
+    UniversityCredentials:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+
+    UniversityLoginResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        sessionToken:
+          type: ["string", "null"]
+        sesskey:
+          type: ["string", "null"]
+        userFullname:
+          type: ["string", "null"]
+        error:
+          type: ["string", "null"]
+
+    UniversityTask:
+      type: object
+      required: [id, title, courseName]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        courseName:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+
+    UniversityTaskList:
+      type: object
+      required: [tasks]
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/UniversityTask"
+
+    UniversityError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
