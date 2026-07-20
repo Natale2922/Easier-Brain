@@ -78,10 +78,31 @@ export async function moodleLogin(
     });
 
     const newSession = extractMoodleSession(postResp.headers);
-    const location = postResp.headers.get("location") ?? "";
+    let location = postResp.headers.get("location") ?? "";
 
-    // A successful login creates a new session cookie and redirects away from /login/
-    if (!newSession || location.includes("/login/")) {
+    if (!newSession) {
+      return { session: null, error: "Usuario o contraseña incorrectos" };
+    }
+
+    // Moodle may redirect to /login/index.php?testsession=... to verify the client
+    // accepts cookies. Follow that redirect with the new session cookie; if the
+    // next redirect is also to /login/ (no testsession param) the credentials failed.
+    if (location.includes("/login/") && location.includes("testsession=")) {
+      const testUrl = location.startsWith("http")
+        ? location
+        : `${BASE}${location}`;
+      const testResp = await fetch(testUrl, {
+        headers: {
+          Cookie: `MoodleSession=${newSession}`,
+          "User-Agent": "MisTareasApp/1.0",
+        },
+        redirect: "manual",
+      });
+      location = testResp.headers.get("location") ?? "";
+    }
+
+    // After testsession (or directly), a /login/ redirect means bad credentials
+    if (location.includes("/login/")) {
       return { session: null, error: "Usuario o contraseña incorrectos" };
     }
 
