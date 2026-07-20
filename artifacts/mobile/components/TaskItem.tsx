@@ -6,15 +6,21 @@ import { useColors } from '@/hooks/useColors';
 import { type Task, type Priority, useTasks } from '@/context/TasksContext';
 
 const PRIORITY_COLORS: Record<Priority, string> = {
-  high: '#EF4444',
-  medium: '#F59E0B',
-  low: '#22C55E',
+  high: '#FF7B7B',
+  medium: '#FFB347',
+  low: '#5EC97E',
 };
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   high: 'Alta',
   medium: 'Media',
   low: 'Baja',
+};
+
+const DELIVERY_CONFIG = {
+  campus: { label: 'Campus', icon: 'monitor' as const, color: '#7C6FCD' },
+  email: { label: 'Correo', icon: 'mail' as const, color: '#3B82F6' },
+  class: { label: 'En clase', icon: 'users' as const, color: '#10B981' },
 };
 
 function formatDueDate(isoString: string): string {
@@ -36,10 +42,10 @@ function getDueDateColor(isoString: string): string {
   const diffMs = date.getTime() - now.getTime();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 0) return '#EF4444';
-  if (diffDays <= 1) return '#EF4444';
-  if (diffDays <= 3) return '#F59E0B';
-  return '#22C55E';
+  if (diffDays < 0) return '#FF7B7B';
+  if (diffDays <= 1) return '#FF7B7B';
+  if (diffDays <= 3) return '#FFB347';
+  return '#5EC97E';
 }
 
 interface Props {
@@ -60,7 +66,7 @@ export function TaskItem({ task }: Props) {
     if (!task.completed) {
       Animated.sequence([
         Animated.spring(checkScale, {
-          toValue: 1.3,
+          toValue: 1.4,
           useNativeDriver: true,
           tension: 200,
           friction: 5,
@@ -86,10 +92,12 @@ export function TaskItem({ task }: Props) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Animated.timing(rowOpacity, {
       toValue: 0,
-      duration: 200,
+      duration: 220,
       useNativeDriver: true,
     }).start(() => deleteTask(task.id));
   };
+
+  const deliveryCfg = task.deliveryMethod ? DELIVERY_CONFIG[task.deliveryMethod] : null;
 
   return (
     <Animated.View
@@ -97,14 +105,14 @@ export function TaskItem({ task }: Props) {
         styles.container,
         {
           backgroundColor: colors.card,
-          borderRadius: colors.radius,
+          borderRadius: 16,
           borderColor: colors.border,
           opacity: rowOpacity,
         },
       ]}
     >
       {/* Priority stripe */}
-      <View style={[styles.priorityStripe, { backgroundColor: priorityColor }]} />
+      <View style={[styles.priorityStripe, { backgroundColor: task.completed ? colors.border : priorityColor }]} />
 
       {/* Checkbox */}
       <Pressable onPress={handleToggle} style={styles.checkArea} hitSlop={8}>
@@ -113,7 +121,7 @@ export function TaskItem({ task }: Props) {
             styles.circle,
             {
               borderColor: task.completed ? priorityColor : colors.border,
-              backgroundColor: task.completed ? priorityColor + '20' : 'transparent',
+              backgroundColor: task.completed ? priorityColor + '22' : 'transparent',
               borderRadius: 11,
             },
           ]}
@@ -151,31 +159,19 @@ export function TaskItem({ task }: Props) {
 
         <View style={styles.metaRow}>
           {/* Priority badge */}
-          <View
-            style={[styles.badge, { backgroundColor: priorityColor + '18', borderRadius: 4 }]}
-          >
+          <View style={[styles.badge, { backgroundColor: priorityColor + '18', borderRadius: 6 }]}>
             <View style={[styles.badgeDot, { backgroundColor: priorityColor }]} />
-            <Text
-              style={[styles.badgeText, { color: priorityColor, fontFamily: 'Inter_600SemiBold' }]}
-            >
+            <Text style={[styles.badgeText, { color: priorityColor, fontFamily: 'Inter_600SemiBold' }]}>
               {PRIORITY_LABELS[task.priority]}
             </Text>
           </View>
 
-          {/* Course name badge (university tasks) */}
-          {isUniversity && task.courseName ? (
-            <View
-              style={[
-                styles.badge,
-                { backgroundColor: colors.primary + '14', borderRadius: 4 },
-              ]}
-            >
+          {/* Course badge */}
+          {task.courseName ? (
+            <View style={[styles.badge, { backgroundColor: colors.primary + '14', borderRadius: 6 }]}>
               <Feather name="book" size={9} color={colors.primary} />
               <Text
-                style={[
-                  styles.badgeText,
-                  { color: colors.primary, fontFamily: 'Inter_500Medium' },
-                ]}
+                style={[styles.badgeText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}
                 numberOfLines={1}
               >
                 {task.courseName}
@@ -188,20 +184,33 @@ export function TaskItem({ task }: Props) {
             <View
               style={[
                 styles.badge,
-                {
-                  backgroundColor: getDueDateColor(task.dueDate) + '18',
-                  borderRadius: 4,
-                },
+                { backgroundColor: getDueDateColor(task.dueDate) + '18', borderRadius: 6 },
               ]}
             >
               <Feather name="clock" size={9} color={getDueDateColor(task.dueDate)} />
-              <Text
-                style={[
-                  styles.badgeText,
-                  { color: getDueDateColor(task.dueDate), fontFamily: 'Inter_500Medium' },
-                ]}
-              >
+              <Text style={[styles.badgeText, { color: getDueDateColor(task.dueDate), fontFamily: 'Inter_500Medium' }]}>
                 {formatDueDate(task.dueDate)}
+                {task.dueTime ? ` ${task.dueTime}` : ''}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Delivery method badge */}
+          {deliveryCfg && !task.completed ? (
+            <View style={[styles.badge, { backgroundColor: deliveryCfg.color + '18', borderRadius: 6 }]}>
+              <Feather name={deliveryCfg.icon} size={9} color={deliveryCfg.color} />
+              <Text style={[styles.badgeText, { color: deliveryCfg.color, fontFamily: 'Inter_500Medium' }]}>
+                {deliveryCfg.label}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* University source badge */}
+          {isUniversity ? (
+            <View style={[styles.badge, { backgroundColor: '#10B98118', borderRadius: 6 }]}>
+              <Feather name="globe" size={9} color="#10B981" />
+              <Text style={[styles.badgeText, { color: '#10B981', fontFamily: 'Inter_500Medium' }]}>
+                Campus
               </Text>
             </View>
           ) : null}
@@ -223,9 +232,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 1,
   },
   priorityStripe: { width: 3, alignSelf: 'stretch' },
@@ -255,15 +264,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 3,
     gap: 4,
   },
-  badgeDot: { width: 6, height: 6, borderRadius: 3 },
+  badgeDot: { width: 5, height: 5, borderRadius: 3 },
   badgeText: {
     fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    maxWidth: 120,
+    maxWidth: 130,
   },
   deleteBtn: { padding: 14, paddingLeft: 8 },
 });

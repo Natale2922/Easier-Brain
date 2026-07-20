@@ -11,6 +11,7 @@ import { getUniversityTasks } from '@workspace/api-client-react';
 
 export type Priority = 'low' | 'medium' | 'high';
 export type TaskSource = 'manual' | 'university';
+export type DeliveryMethod = 'campus' | 'email' | 'class';
 
 export interface Task {
   id: string;
@@ -20,16 +21,30 @@ export interface Task {
   completed: boolean;
   completedAt?: string;
   createdAt: string;
-  // University task extras
+  // Scheduling
+  dueDate?: string;
+  dueTime?: string;
+  // Classification
+  courseName?: string;
+  deliveryMethod?: DeliveryMethod;
+  // University sync
   source?: TaskSource;
   externalId?: string;
+}
+
+export interface AddTaskParams {
+  title: string;
+  note?: string;
+  priority?: Priority;
   dueDate?: string;
+  dueTime?: string;
   courseName?: string;
+  deliveryMethod?: DeliveryMethod;
 }
 
 interface TasksContextType {
   tasks: Task[];
-  addTask: (title: string, note?: string, priority?: Priority) => void;
+  addTask: (params: AddTaskParams) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   syncUniversityTasks: (sessionToken: string, sesskey: string) => Promise<void>;
@@ -40,7 +55,7 @@ interface TasksContextType {
 
 const TasksContext = createContext<TasksContextType | null>(null);
 
-const STORAGE_KEY = '@tasks_v1';
+const STORAGE_KEY = '@tasks_v2';
 const SYNC_KEY = '@last_sync';
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
@@ -54,9 +69,18 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     Promise.all([
       AsyncStorage.getItem(STORAGE_KEY),
       AsyncStorage.getItem(SYNC_KEY),
+      // Migrate from old storage key
+      AsyncStorage.getItem('@tasks_v1'),
     ])
-      .then(([tasksRaw, syncRaw]) => {
-        if (tasksRaw) setTasks(JSON.parse(tasksRaw));
+      .then(([tasksRaw, syncRaw, oldRaw]) => {
+        if (tasksRaw) {
+          setTasks(JSON.parse(tasksRaw));
+        } else if (oldRaw) {
+          // Migrate old tasks
+          const old = JSON.parse(oldRaw) as Task[];
+          setTasks(old);
+          AsyncStorage.setItem(STORAGE_KEY, oldRaw).catch(() => {});
+        }
         if (syncRaw) setLastSyncAt(syncRaw);
       })
       .catch(() => {})
@@ -68,7 +92,16 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addTask = useCallback(
-    (title: string, note?: string, priority: Priority = 'medium') => {
+    (params: AddTaskParams) => {
+      const {
+        title,
+        note,
+        priority = 'medium',
+        dueDate,
+        dueTime,
+        courseName,
+        deliveryMethod,
+      } = params;
       const newTask: Task = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         title,
@@ -77,6 +110,10 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         completed: false,
         source: 'manual',
         createdAt: new Date().toISOString(),
+        dueDate,
+        dueTime,
+        courseName,
+        deliveryMethod,
       };
       setTasks(prev => {
         const updated = [newTask, ...prev];
@@ -127,17 +164,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         const result = await getUniversityTasks({ sessionToken, sesskey });
 
         setTasks(prev => {
-          // Separate manual tasks from university-sourced tasks
           const manualTasks = prev.filter(t => t.source !== 'university');
           const existingUniTasks = prev.filter(t => t.source === 'university');
-          const existingMap = new Map(
-            existingUniTasks.map(t => [t.externalId, t]),
-          );
+          const existingMap = new Map(existingUniTasks.map(t => [t.externalId, t]));
 
           const updatedUniTasks: Task[] = result.tasks.map(mTask => {
             const existing = existingMap.get(mTask.id);
             if (existing) {
-              // Update metadata but preserve completion status
               return {
                 ...existing,
                 title: mTask.title,
@@ -145,7 +178,6 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
                 dueDate: mTask.dueDate || undefined,
               };
             }
-            // New task from Moodle
             return {
               id: 'uni_' + mTask.id,
               externalId: mTask.id,

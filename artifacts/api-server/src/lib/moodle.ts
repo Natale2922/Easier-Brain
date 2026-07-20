@@ -33,6 +33,9 @@ function extractMoodleSession(headers: Headers): string | null {
 function cleanTitle(title: string): string {
   return title
     .replace(/^(Assignment|Quiz|Forum|Task|Tarea|Actividad|Foro):\s*/i, "")
+    .replace(/\s+está\s+en\s+fecha\s+de\s+entrega\s*$/i, "")
+    .replace(/\s+is\s+due\s*$/i, "")
+    .replace(/\s+has\s+a\s+due\s+date\s*$/i, "")
     .trim();
 }
 
@@ -160,9 +163,11 @@ export async function getMoodleTasks(
   sesskey: string,
 ): Promise<MoodleTask[]> {
   const now = Math.floor(Date.now() / 1000);
-  const future = now + 90 * 24 * 60 * 60; // 90 days
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60;
+  const future = now + 180 * 24 * 60 * 60; // 180 days ahead
 
   // Primary: Moodle internal AJAX service (works even with web services disabled)
+  // NOTE: limitnum max is 50 on this server — using 100 causes a hard error
   if (sesskey) {
     try {
       const ajaxResp = await fetch(
@@ -180,10 +185,9 @@ export async function getMoodleTasks(
               index: 0,
               methodname: "core_calendar_get_action_events_by_timesort",
               args: {
-                limitnum: 100,
-                timesortfrom: now,
+                limitnum: 50,
+                timesortfrom: sevenDaysAgo,
                 timesortto: future,
-                limittononsuspendedevents: true,
               },
             },
           ]),
