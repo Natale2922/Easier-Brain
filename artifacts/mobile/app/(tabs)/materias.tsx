@@ -14,15 +14,18 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, type Task } from '@/context/TasksContext';
 import { TaskItem } from '@/components/TaskItem';
+import { TaskDetail } from '@/components/TaskDetail';
 
 function SubjectCard({
   courseName,
   tasks,
   pasteIndex,
+  onSelectTask,
 }: {
   courseName: string;
   tasks: Task[];
   pasteIndex: number;
+  onSelectTask: (task: Task) => void;
 }) {
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);
@@ -93,7 +96,7 @@ function SubjectCard({
               return 0;
             })
             .map(t => (
-              <TaskItem key={t.id} task={t} />
+              <TaskItem key={t.id} task={t} onPress={() => onSelectTask(t)} />
             ))}
         </View>
       )}
@@ -106,6 +109,7 @@ export default function MateriasScreen() {
   const insets = useSafeAreaInsets();
   const { tasks } = useTasks();
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   // Group tasks by courseName
   const grouped = useMemo(() => {
@@ -173,10 +177,13 @@ export default function MateriasScreen() {
               courseName={name}
               tasks={subjectTasks}
               pasteIndex={idx}
+              onSelectTask={setSelectedTask}
             />
           ))}
         </ScrollView>
       )}
+
+      <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)} />
     </View>
   );
 }

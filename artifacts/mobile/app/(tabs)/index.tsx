@@ -9,32 +9,34 @@ import {
   AppState,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
-import { useTasks } from '@/context/TasksContext';
+import { useTasks, type Task } from '@/context/TasksContext';
 import { useAuth } from '@/context/AuthContext';
 import { TaskItem } from '@/components/TaskItem';
+import { TaskDetail } from '@/components/TaskDetail';
 import { AITaskDialog } from '@/components/AITaskDialog';
+import { useNotifications } from '@/hooks/useNotifications';
 
 type Filter = 'all' | 'today' | 'tomorrow' | 'week' | 'nodate';
 
-const FILTERS: { key: Filter; label: string; icon: string }[] = [
-  { key: 'all', label: 'Todas', icon: 'list' },
-  { key: 'today', label: 'Hoy', icon: 'sun' },
-  { key: 'tomorrow', label: 'Mañana', icon: 'sunrise' },
-  { key: 'week', label: 'Esta semana', icon: 'calendar' },
-  { key: 'nodate', label: 'Sin fecha', icon: 'minus-circle' },
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: 'all', label: 'Todas' },
+  { key: 'today', label: 'Hoy' },
+  { key: 'tomorrow', label: 'Mañana' },
+  { key: 'week', label: 'Esta semana' },
+  { key: 'nodate', label: 'Sin fecha' },
 ];
 
 function formatLastSync(isoString: string | null): string {
   if (!isoString) return 'Nunca sincronizado';
   const date = new Date(isoString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return 'Ahora mismo';
   if (diffMin < 60) return `Hace ${diffMin} min`;
@@ -43,54 +45,51 @@ function formatLastSync(isoString: string | null): string {
   return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 
-function startOfDay(d: Date) { const r = new Date(d); r.setHours(0,0,0,0); return r; }
-function endOfDay(d: Date) { const r = new Date(d); r.setHours(23,59,59,999); return r; }
+function dayBounds(offsetDays: number) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + offsetDays);
+  const start = d.getTime();
+  const end = start + 86399999;
+  return { start, end };
+}
 
 export default function TasksScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { tasks, isLoading, isSyncing, lastSyncAt, syncUniversityTasks } = useTasks();
-  const { sessionToken, sesskey, isAuthenticated } = useAuth();
+  const { tasks, isLoading, isSyncing, lastSyncAt, syncUniversityTasks, syncError } = useTasks();
+  const { sessionToken, sesskey, isAuthenticated, userFullname, logout, reloginSilently } = useAuth();
+  const { scheduleBulkReminders } = useNotifications();
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
+
   const [filter, setFilter] = useState<Filter>('all');
   const [aiDialogVisible, setAiDialogVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
+  // ─── Filtered pending tasks ──────────────────────────────────────────────
   const pendingTasks = useMemo(() => {
-    const now = new Date();
-    const todayStart = startOfDay(now);
-    const todayEnd = endOfDay(now);
-    const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-    const tomorrowEnd = endOfDay(tomorrowStart);
-    const weekEnd = new Date(todayStart); weekEnd.setDate(weekEnd.getDate() + 7);
+    const today = dayBounds(0);
+    const tomorrow = dayBounds(1);
+    const weekEnd = Date.now() + 7 * 86400000;
 
     return tasks
       .filter(t => {
         if (t.completed) return false;
         if (filter === 'all') return true;
-        if (filter === 'today') {
-          if (!t.dueDate) return false;
-          const d = new Date(t.dueDate);
-          return d >= todayStart && d <= todayEnd;
-        }
-        if (filter === 'tomorrow') {
-          if (!t.dueDate) return false;
-          const d = new Date(t.dueDate);
-          return d >= tomorrowStart && d <= tomorrowEnd;
-        }
-        if (filter === 'week') {
-          if (!t.dueDate) return false;
-          const d = new Date(t.dueDate);
-          return d >= todayStart && d <= weekEnd;
-        }
-        if (filter === 'nodate') return !t.dueDate;
+        const due = t.dueDate ? new Date(t.dueDate).getTime() : null;
+        if (filter === 'today') return due !== null && due >= today.start && due <= today.end;
+        if (filter === 'tomorrow') return due !== null && due >= tomorrow.start && due <= tomorrow.end;
+        if (filter === 'week') return due !== null && due >= today.start && due <= weekEnd;
+        if (filter === 'nodate') return due === null;
         return true;
       })
       .sort((a, b) => {
         if (a.dueDate && !b.dueDate) return -1;
         if (!a.dueDate && b.dueDate) return 1;
-        if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-        const order = { high: 0, medium: 1, low: 2 } as const;
-        return order[a.priority] - order[b.priority];
+        if (a.dueDate && b.dueDate)
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        const ord = { high: 0, medium: 1, low: 2 } as const;
+        return ord[a.priority] - ord[b.priority];
       });
   }, [tasks, filter]);
 
@@ -101,22 +100,49 @@ export default function TasksScreen() {
     ).length;
   }, [tasks]);
 
+  // ─── Sync ────────────────────────────────────────────────────────────────
   const doSync = useCallback(async () => {
     if (!isAuthenticated || !sessionToken || !sesskey || isSyncing) return;
-    await syncUniversityTasks(sessionToken, sesskey);
-  }, [isAuthenticated, sessionToken, sesskey, isSyncing, syncUniversityTasks]);
+    await syncUniversityTasks(sessionToken, sesskey, reloginSilently);
+    // Schedule reminders for all pending tasks with due dates
+    scheduleBulkReminders(tasks.filter(t => !t.completed && t.dueDate));
+  }, [isAuthenticated, sessionToken, sesskey, isSyncing, syncUniversityTasks, reloginSilently, scheduleBulkReminders, tasks]);
 
-  const INTERVAL_MS = 30 * 60 * 1000;
+  const INTERVAL_MS = 20 * 60 * 1000; // sync every 20 min
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     doSync();
-    const sub = AppState.addEventListener('change', state => { if (state === 'active') doSync(); });
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') doSync();
+    });
     intervalRef.current = setInterval(doSync, INTERVAL_MS);
-    return () => { sub.remove(); if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      sub.remove();
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, sessionToken, sesskey]);
+
+  // ─── Logout ──────────────────────────────────────────────────────────────
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Seguro que quieres cerrar sesión? Las tareas guardadas se mantendrán en el dispositivo.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            logout();
+          },
+        },
+      ],
+    );
+  };
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -129,31 +155,30 @@ export default function TasksScreen() {
     weekday: 'long', day: 'numeric', month: 'long',
   });
 
-  const filterCount = (f: Filter) => {
-    const now = new Date();
-    const todayStart = startOfDay(now); const todayEnd = endOfDay(now);
-    const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-    const tomorrowEnd = endOfDay(tomorrowStart);
-    const weekEnd = new Date(todayStart); weekEnd.setDate(weekEnd.getDate() + 7);
+  const filterCount = (f: Filter): number => {
+    const today = dayBounds(0);
+    const tomorrow = dayBounds(1);
+    const weekEnd = Date.now() + 7 * 86400000;
     return tasks.filter(t => {
       if (t.completed) return false;
+      const due = t.dueDate ? new Date(t.dueDate).getTime() : null;
       if (f === 'all') return true;
-      if (f === 'today') { if (!t.dueDate) return false; const d = new Date(t.dueDate); return d >= todayStart && d <= todayEnd; }
-      if (f === 'tomorrow') { if (!t.dueDate) return false; const d = new Date(t.dueDate); return d >= tomorrowStart && d <= tomorrowEnd; }
-      if (f === 'week') { if (!t.dueDate) return false; const d = new Date(t.dueDate); return d >= todayStart && d <= weekEnd; }
-      if (f === 'nodate') return !t.dueDate;
-      return true;
+      if (f === 'today') return due !== null && due >= today.start && due <= today.end;
+      if (f === 'tomorrow') return due !== null && due >= tomorrow.start && due <= tomorrow.end;
+      if (f === 'week') return due !== null && due >= today.start && due <= weekEnd;
+      if (f === 'nodate') return due === null;
+      return false;
     }).length;
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + 20, backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: topInset + 16, backgroundColor: colors.background }]}>
         <View style={styles.headerRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.greeting, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              {greeting()}
+              {greeting()}{userFullname ? `, ${userFullname.split(' ')[0]}` : ''}
             </Text>
             <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
               Mis Tareas
@@ -162,20 +187,36 @@ export default function TasksScreen() {
               {dateStr}
             </Text>
           </View>
-          <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); doSync(); }}
-            style={({ pressed }) => [styles.syncBtn, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, opacity: pressed ? 0.7 : 1 }]}
-            disabled={isSyncing}
-          >
-            {isSyncing ? <ActivityIndicator size="small" color={colors.primary} /> : <Feather name="refresh-cw" size={16} color={colors.primary} />}
-          </Pressable>
+          <View style={styles.headerBtns}>
+            {/* Sync */}
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); doSync(); }}
+              style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 14, opacity: pressed ? 0.7 : 1 }]}
+              disabled={isSyncing}
+            >
+              {isSyncing
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <Feather name="refresh-cw" size={16} color={colors.primary} />}
+            </Pressable>
+            {/* Logout */}
+            <Pressable
+              onPress={handleLogout}
+              style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 14, opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Feather name="log-out" size={16} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Sync status */}
         <View style={styles.syncRow}>
-          <Feather name={isSyncing ? 'loader' : 'check'} size={11} color={colors.mutedForeground} />
+          <View style={[styles.syncDot, { backgroundColor: isSyncing ? colors.primary : syncError ? colors.destructive : '#22C55E' }]} />
           <Text style={[styles.syncText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            {isSyncing ? 'Sincronizando con campus virtual...' : formatLastSync(lastSyncAt)}
+            {isSyncing
+              ? 'Sincronizando con campus virtual...'
+              : syncError
+              ? syncError
+              : formatLastSync(lastSyncAt)}
           </Text>
         </View>
       </View>
@@ -192,6 +233,12 @@ export default function TasksScreen() {
           <Text style={[styles.statNumber, { color: '#22C55E', fontFamily: 'Inter_700Bold' }]}>{completedToday}</Text>
           <Text style={[styles.statLabel, { color: '#22C55E', fontFamily: 'Inter_500Medium' }]}>Hoy completadas</Text>
         </View>
+        <View style={[styles.statCard, { backgroundColor: '#FFB34714', borderRadius: colors.radius }]}>
+          <Text style={[styles.statNumber, { color: '#FFB347', fontFamily: 'Inter_700Bold' }]}>
+            {tasks.filter(t => t.source === 'university' && !t.completed).length}
+          </Text>
+          <Text style={[styles.statLabel, { color: '#FFB347', fontFamily: 'Inter_500Medium' }]}>Del campus</Text>
+        </View>
       </View>
 
       {/* Filters */}
@@ -199,7 +246,7 @@ export default function TasksScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterRow}
-        style={{ maxHeight: 48 }}
+        style={{ maxHeight: 46 }}
       >
         {FILTERS.map(f => {
           const count = filterCount(f.key);
@@ -237,11 +284,16 @@ export default function TasksScreen() {
       <FlatList
         data={pendingTasks}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <TaskItem task={item} />}
+        renderItem={({ item }) => (
+          <TaskItem
+            task={item}
+            onPress={() => setSelectedTask(item)}
+          />
+        )}
         contentContainerStyle={[
           styles.listContent,
           pendingTasks.length === 0 && styles.emptyContent,
-          { paddingBottom: Platform.OS === 'web' ? 130 : 110 },
+          { paddingBottom: Platform.OS === 'web' ? 140 : 120 },
         ]}
         showsVerticalScrollIndicator={false}
         refreshing={isSyncing}
@@ -251,11 +303,11 @@ export default function TasksScreen() {
             <View style={styles.emptyState}>
               <Feather name="check-circle" size={52} color={colors.border} />
               <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                {filter === 'all' ? 'Todo al día' : 'Sin tareas aquí'}
+                {filter === 'all' ? 'Todo al día ✓' : 'Sin tareas aquí'}
               </Text>
               <Text style={[styles.emptySubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
                 {filter === 'all'
-                  ? 'No tienes tareas pendientes.\nToca + para agregar una nueva.'
+                  ? 'No hay tareas pendientes.\nToca ⚡ para agregar con asistente o + para agregar.'
                   : 'No hay tareas con este filtro.'}
               </Text>
             </View>
@@ -265,29 +317,24 @@ export default function TasksScreen() {
 
       {/* FABs */}
       <View style={[styles.fabGroup, { bottom: Platform.OS === 'web' ? 106 : 90 }]}>
-        {/* AI button */}
         <Pressable
-          style={({ pressed }) => [
-            styles.fabSecondary,
-            { backgroundColor: colors.secondary, borderRadius: 20, opacity: pressed ? 0.85 : 1 },
-          ]}
+          style={({ pressed }) => [styles.fabSecondary, { backgroundColor: colors.secondary, borderRadius: 20, opacity: pressed ? 0.85 : 1 }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAiDialogVisible(true); }}
         >
           <Feather name="zap" size={20} color={colors.primary} />
         </Pressable>
-
-        {/* Main FAB */}
         <Pressable
-          style={({ pressed }) => [
-            styles.fab,
-            { backgroundColor: colors.primary, borderRadius: 28, opacity: pressed ? 0.85 : 1 },
-          ]}
+          style={({ pressed }) => [styles.fab, { backgroundColor: colors.primary, borderRadius: 28, opacity: pressed ? 0.85 : 1 }]}
           onPress={() => router.push('/add')}
         >
           <Feather name="plus" size={26} color="#FFFFFF" />
         </Pressable>
       </View>
 
+      {/* Task detail modal */}
+      <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)} />
+
+      {/* AI dialog */}
       <AITaskDialog visible={aiDialogVisible} onClose={() => setAiDialogVisible(false)} />
     </View>
   );
@@ -295,29 +342,31 @@ export default function TasksScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 12 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  greeting: { fontSize: 14, marginBottom: 2 },
-  headerTitle: { fontSize: 30, letterSpacing: -0.5 },
-  dateText: { fontSize: 13, marginTop: 3, textTransform: 'capitalize' },
-  syncBtn: { width: 38, height: 38, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  syncRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+  header: { paddingHorizontal: 20, paddingBottom: 10 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  greeting: { fontSize: 13, marginBottom: 1 },
+  headerTitle: { fontSize: 28, letterSpacing: -0.5 },
+  dateText: { fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
+  headerBtns: { flexDirection: 'row', gap: 8, paddingTop: 4 },
+  iconBtn: { width: 38, height: 38, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  syncRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  syncDot: { width: 6, height: 6, borderRadius: 3 },
   syncText: { fontSize: 11 },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 12 },
-  statCard: { flex: 1, padding: 14 },
-  statNumber: { fontSize: 28, lineHeight: 32 },
-  statLabel: { fontSize: 12, marginTop: 2 },
-  filterRow: { paddingHorizontal: 20, gap: 8, alignItems: 'center', paddingBottom: 12 },
-  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 10 },
+  statCard: { flex: 1, padding: 12 },
+  statNumber: { fontSize: 24, lineHeight: 28 },
+  statLabel: { fontSize: 11, marginTop: 2 },
+  filterRow: { paddingHorizontal: 20, gap: 8, alignItems: 'center', paddingBottom: 10 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 7, borderWidth: 1 },
   filterText: { fontSize: 13 },
-  filterBadge: { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
+  filterBadge: { borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 },
   filterBadgeText: { fontSize: 10 },
   listContent: { paddingHorizontal: 20, gap: 10 },
   emptyContent: { flex: 1 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
   emptyTitle: { fontSize: 18, marginTop: 4 },
   emptySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
-  fabGroup: { position: 'absolute', right: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  fabGroup: { position: 'absolute', right: 20, flexDirection: 'row', alignItems: 'center', gap: 10 },
   fabSecondary: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
   fab: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
 });

@@ -163,7 +163,7 @@ export async function getMoodleTasks(
   sesskey: string,
 ): Promise<MoodleTask[]> {
   const now = Math.floor(Date.now() / 1000);
-  const sevenDaysAgo = now - 7 * 24 * 60 * 60;
+  const sixtyDaysAgo = now - 60 * 24 * 60 * 60; // show last 60 days + future
   const future = now + 180 * 24 * 60 * 60; // 180 days ahead
 
   // Primary: Moodle internal AJAX service (works even with web services disabled)
@@ -186,7 +186,7 @@ export async function getMoodleTasks(
               methodname: "core_calendar_get_action_events_by_timesort",
               args: {
                 limitnum: 50,
-                timesortfrom: sevenDaysAgo,
+                timesortfrom: sixtyDaysAgo,
                 timesortto: future,
               },
             },
@@ -196,6 +196,17 @@ export async function getMoodleTasks(
 
       if (ajaxResp.ok) {
         const text = await ajaxResp.text();
+
+        // Detect session expiry
+        if (
+          text.includes("requireslogin") ||
+          text.includes("servicerequireslogin") ||
+          text.includes('"exception"') &&
+            text.includes("login")
+        ) {
+          throw new Error("SESSION_EXPIRED");
+        }
+
         let json: unknown;
         try {
           json = JSON.parse(text);
@@ -203,9 +214,18 @@ export async function getMoodleTasks(
           json = null;
         }
 
-        if (Array.isArray(json) && json[0] && !json[0].error) {
-          const events: unknown[] = json[0].data?.events ?? [];
-          if (events.length >= 0) {
+        if (Array.isArray(json) && json[0]) {
+          // Detect session expiry via error code
+          if (
+            json[0].error &&
+            (String(json[0].exception?.errorcode ?? "").includes("login") ||
+              String(json[0].exception?.message ?? "").includes("login"))
+          ) {
+            throw new Error("SESSION_EXPIRED");
+          }
+
+          if (!json[0].error) {
+            const events: unknown[] = json[0].data?.events ?? [];
             return (events as any[]).map(
               (e): MoodleTask => ({
                 id: String(e.id),
@@ -216,15 +236,29 @@ export async function getMoodleTasks(
                 dueDate: e.timesort
                   ? new Date(Number(e.timesort) * 1000).toISOString()
                   : null,
-                description: null,
+                description: e.description
+                  ? String(e.description)
+                      .replace(/<[^>]+>/g, " ")
+                      .replace(/&nbsp;/g, " ")
+                      .replace(/&amp;/g, "&")
+                      .replace(/&lt;/g, "<")
+                      .replace(/&gt;/g, ">")
+                      .replace(/&quot;/g, '"')
+                      .replace(/\s+/g, " ")
+                      .trim()
+                      .substring(0, 800) || null
+                  : null,
                 url: e.url ? String(e.url) : null,
               }),
             );
           }
         }
       }
-    } catch {
-      // Fall through to HTML scraping
+    } catch (err) {
+      if (err instanceof Error && err.message === "SESSION_EXPIRED") {
+        throw err; // Re-throw so the caller can handle re-login
+      }
+      // Other errors: fall through to HTML scraping
     }
   }
 

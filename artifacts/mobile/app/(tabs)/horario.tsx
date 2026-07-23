@@ -9,15 +9,18 @@ import {
   Modal,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColors } from '@/hooks/useColors';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 
 const STORAGE_KEY = '@horario_v1';
+const IMAGE_KEY = '@horario_image_v1';
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7:00 – 21:00
 
@@ -73,16 +76,63 @@ export default function HorarioScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<BlockFormState>(EMPTY_FORM);
+  const [scheduleImageUri, setScheduleImageUri] = useState<string | null>(null);
+  const [showImage, setShowImage] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then(raw => { if (raw) setBlocks(JSON.parse(raw)); })
+    Promise.all([
+      AsyncStorage.getItem(STORAGE_KEY),
+      AsyncStorage.getItem(IMAGE_KEY),
+    ])
+      .then(([rawBlocks, rawImage]) => {
+        if (rawBlocks) setBlocks(JSON.parse(rawBlocks));
+        if (rawImage) setScheduleImageUri(rawImage);
+      })
       .catch(() => {});
   }, []);
 
   const persist = useCallback((b: ClassBlock[]) => {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(b)).catch(() => {});
   }, []);
+
+  const pickScheduleImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos para importar la imagen del horario.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        const uri = result.assets[0].uri;
+        setScheduleImageUri(uri);
+        setShowImage(true);
+        AsyncStorage.setItem(IMAGE_KEY, uri).catch(() => {});
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo importar la imagen.');
+    }
+  };
+
+  const clearImage = () => {
+    Alert.alert('Eliminar imagen', '¿Quitar la imagen del horario?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: () => {
+          setScheduleImageUri(null);
+          setShowImage(false);
+          AsyncStorage.removeItem(IMAGE_KEY).catch(() => {});
+        },
+      },
+    ]);
+  };
 
   const openAdd = () => {
     setEditingId(null);
@@ -159,81 +209,144 @@ export default function HorarioScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + 20 }]}>
-        <View style={styles.headerRow}>
+      <View style={[styles.topHeader, { paddingTop: topInset + 16, backgroundColor: colors.background }]}>
+        <View>
           <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
             Horario
           </Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            {blocks.length === 0 ? 'Sin clases agregadas' : `${blocks.length} clase${blocks.length !== 1 ? 's' : ''}`}
+          </Text>
+        </View>
+        <View style={styles.headerBtns}>
+          {/* Image picker button */}
           <Pressable
-            style={({ pressed }) => [styles.addBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1, borderRadius: 14 }]}
+            style={({ pressed }) => [styles.iconBtn, { backgroundColor: scheduleImageUri ? colors.primary + '18' : colors.card, borderColor: scheduleImageUri ? colors.primary : colors.border, borderRadius: 14, opacity: pressed ? 0.7 : 1 }]}
+            onPress={scheduleImageUri ? () => setShowImage(v => !v) : pickScheduleImage}
+            onLongPress={scheduleImageUri ? clearImage : undefined}
+          >
+            <Feather name="image" size={16} color={scheduleImageUri ? colors.primary : colors.mutedForeground} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.primary, borderColor: colors.primary, borderRadius: 14, opacity: pressed ? 0.85 : 1 }]}
             onPress={openAdd}
           >
             <Feather name="plus" size={18} color="#FFF" />
-            <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Clase</Text>
           </Pressable>
         </View>
       </View>
 
-      {blocks.length === 0 ? (
-        <View style={styles.empty}>
-          <Feather name="calendar" size={52} color={colors.border} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-            Sin horario
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Toca "+ Clase" para agregar{'\n'}tus materias y horarios.
-          </Text>
+      {/* Schedule image banner */}
+      {scheduleImageUri && showImage && (
+        <View style={[styles.imageBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.imageBannerHeader}>
+            <Text style={[styles.imageBannerTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+              📸 Imagen del horario
+            </Text>
+            <View style={styles.imageBannerActions}>
+              <Pressable onPress={pickScheduleImage} hitSlop={8}>
+                <Feather name="refresh-cw" size={14} color={colors.primary} />
+              </Pressable>
+              <Pressable onPress={clearImage} hitSlop={8}>
+                <Feather name="trash-2" size={14} color={colors.destructive} />
+              </Pressable>
+              <Pressable onPress={() => setShowImage(false)} hitSlop={8}>
+                <Feather name="chevron-up" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+          </View>
+          <Image
+            source={{ uri: scheduleImageUri }}
+            style={styles.scheduleImage}
+            resizeMode="contain"
+          />
         </View>
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Platform.OS === 'web' ? 120 : 100 }}>
-            {/* Column headers */}
-            <View style={[styles.colHeaders, { marginLeft: TIME_COL }]}>
-              {DAYS.map(d => (
-                <View key={d} style={[styles.colHeader]}>
-                  <Text style={[styles.colHeaderText, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>{d}</Text>
+      )}
+
+      {/* Image hidden hint */}
+      {scheduleImageUri && !showImage && (
+        <Pressable
+          style={[styles.imageHint, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}
+          onPress={() => setShowImage(true)}
+        >
+          <Feather name="image" size={13} color={colors.primary} />
+          <Text style={[styles.imageHintText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>
+            Ver imagen del horario
+          </Text>
+          <Feather name="chevron-down" size={13} color={colors.primary} />
+        </Pressable>
+      )}
+
+      {/* Import image CTA when empty */}
+      {!scheduleImageUri && blocks.length === 0 && (
+        <Pressable
+          style={[styles.imageImportCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 16 }]}
+          onPress={pickScheduleImage}
+        >
+          <Feather name="upload" size={28} color={colors.primary} />
+          <Text style={[styles.imageImportTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+            Importar imagen del horario
+          </Text>
+          <Text style={[styles.imageImportSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            Toma una foto de tu horario impreso y guárdala aquí para consultarla rápido
+          </Text>
+        </Pressable>
+      )}
+
+      {/* Grid */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={{ flexDirection: 'row', paddingBottom: Platform.OS === 'web' ? 120 : 100 }}>
+            {/* Time column */}
+            <View style={[styles.timeCol, { width: TIME_COL }]}>
+              <View style={[styles.dayHeaderCell, { height: 36 }]} />
+              {HOURS.map(h => (
+                <View key={h} style={[styles.timeCell, { height: CELL_H }]}>
+                  <Text style={[styles.timeText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                    {fmtTime(h, 0)}
+                  </Text>
                 </View>
               ))}
             </View>
 
-            {/* Grid */}
-            <View style={{ flexDirection: 'row' }}>
-              {/* Time column */}
-              <View style={{ width: TIME_COL }}>
-                {HOURS.map(h => (
-                  <View key={h} style={[styles.timeCell, { height: CELL_H }]}>
-                    <Text style={[styles.timeText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                      {String(h).padStart(2, '0')}:00
+            {/* Day columns */}
+            {DAYS.map((day, dayIdx) => {
+              const dayBlocks = blocks
+                .filter(b => b.day === dayIdx)
+                .sort((a, b) => timeToMinutes(a.startHour, a.startMin) - timeToMinutes(b.startHour, b.startMin));
+
+              return (
+                <View key={day} style={[styles.dayCol, { borderLeftColor: colors.border }]}>
+                  {/* Day header */}
+                  <View style={[styles.dayHeaderCell, { height: 36, borderBottomColor: colors.border }]}>
+                    <Text style={[styles.dayHeader, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
+                      {day}
                     </Text>
                   </View>
-                ))}
-              </View>
 
-              {/* Day columns */}
-              {DAYS.map((_, dayIdx) => (
-                <View key={dayIdx} style={[styles.dayCol, { height: GRID_H, borderLeftColor: colors.border }]}>
-                  {/* Hour lines */}
-                  {HOURS.map(h => (
-                    <View key={h} style={[styles.hourLine, { top: (h - 7) * CELL_H, borderColor: colors.border }]} />
-                  ))}
+                  {/* Grid + blocks */}
+                  <View style={{ height: GRID_H, position: 'relative' }}>
+                    {/* Hour lines */}
+                    {HOURS.map(h => (
+                      <View
+                        key={h}
+                        style={[styles.hourLine, { top: (h - 7) * CELL_H, borderTopColor: colors.border }]}
+                      />
+                    ))}
 
-                  {/* Class blocks */}
-                  {blocks
-                    .filter(b => b.day === dayIdx)
-                    .map(block => {
-                      const startMins = timeToMinutes(block.startHour, block.startMin) - 7 * 60;
-                      const durationMins = timeToMinutes(block.endHour, block.endMin) - timeToMinutes(block.startHour, block.startMin);
-                      const top = (startMins / 60) * CELL_H;
-                      const height = (durationMins / 60) * CELL_H - 2;
+                    {/* Class blocks */}
+                    {dayBlocks.map(block => {
+                      const startMin = timeToMinutes(block.startHour, block.startMin) - 7 * 60;
+                      const endMin = timeToMinutes(block.endHour, block.endMin) - 7 * 60;
+                      const top = (startMin / 60) * CELL_H;
+                      const height = ((endMin - startMin) / 60) * CELL_H - 2;
                       const bg = PASTEL_COLORS[block.colorIdx % PASTEL_COLORS.length];
                       const fg = PASTEL_TEXT[block.colorIdx % PASTEL_TEXT.length];
+
                       return (
                         <Pressable
                           key={block.id}
-                          style={({ pressed }) => [
-                            styles.classBlock,
-                            { top, height, backgroundColor: bg, borderLeftColor: fg, opacity: pressed ? 0.8 : 1, borderRadius: 8 },
-                          ]}
+                          style={[styles.classBlock, { top, height, backgroundColor: bg, borderLeftColor: fg }]}
                           onPress={() => openEdit(block)}
                         >
                           <Text style={[styles.blockSubject, { color: fg, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={2}>
@@ -242,104 +355,143 @@ export default function HorarioScreen() {
                           <Text style={[styles.blockTime, { color: fg + 'BB', fontFamily: 'Inter_400Regular' }]}>
                             {fmtTime(block.startHour, block.startMin)}–{fmtTime(block.endHour, block.endMin)}
                           </Text>
-                          {block.room ? <Text style={[styles.blockRoom, { color: fg + '99', fontFamily: 'Inter_400Regular' }]}>{block.room}</Text> : null}
+                          {block.room ? (
+                            <Text style={[styles.blockRoom, { color: fg + '99', fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                              🏫 {block.room}
+                            </Text>
+                          ) : null}
                         </Pressable>
                       );
                     })}
+                  </View>
                 </View>
-              ))}
-            </View>
-          </ScrollView>
+              );
+            })}
+          </View>
         </ScrollView>
-      )}
+      </ScrollView>
 
-      {/* Modal */}
+      {/* Add/Edit modal */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-              {editingId ? 'Editar clase' : 'Nueva clase'}
+              {editingId ? 'Editar clase' : 'Agregar clase'}
             </Text>
-            <Pressable onPress={() => setModalVisible(false)} hitSlop={10}>
-              <Feather name="x" size={22} color={colors.mutedForeground} />
+            <Pressable onPress={() => setModalVisible(false)} hitSlop={12}>
+              <Feather name="x" size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
-          <KeyboardAwareScrollViewCompat contentContainerStyle={styles.modalForm} showsVerticalScrollIndicator={false} bottomOffset={16}>
-            {/* Subject */}
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>MATERIA</Text>
-            <TextInput
-              style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12, fontFamily: 'Inter_500Medium' }]}
-              value={form.subject}
-              onChangeText={v => setForm(f => ({ ...f, subject: v }))}
-              placeholder="Nombre de la materia"
-              placeholderTextColor={colors.mutedForeground}
-              autoFocus
-            />
 
-            {/* Day */}
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginTop: 20 }]}>DÍA</Text>
-            <View style={styles.dayRow}>
-              {DAYS.map((d, i) => (
-                <Pressable
-                  key={d}
-                  style={[styles.dayChip, { backgroundColor: form.day === String(i) ? colors.primary : colors.card, borderColor: form.day === String(i) ? colors.primary : colors.border, borderRadius: 10 }]}
-                  onPress={() => { setForm(f => ({ ...f, day: String(i) })); Haptics.selectionAsync(); }}
-                >
-                  <Text style={[styles.dayChipText, { color: form.day === String(i) ? '#FFF' : colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>{d}</Text>
-                </Pressable>
-              ))}
+          <KeyboardAwareScrollViewCompat contentContainerStyle={styles.modalContent}>
+            {/* Subject */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>MATERIA *</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, borderRadius: 12 }]}
+                value={form.subject}
+                onChangeText={v => setForm(f => ({ ...f, subject: v }))}
+                placeholder="Ej. Cálculo Diferencial"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+
+            {/* Day selector */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>DÍA</Text>
+              <View style={styles.daySelector}>
+                {DAYS.map((d, i) => (
+                  <Pressable
+                    key={d}
+                    style={[styles.dayChip, { backgroundColor: form.day === String(i) ? colors.primary : colors.card, borderRadius: 10, borderColor: form.day === String(i) ? colors.primary : colors.border }]}
+                    onPress={() => setForm(f => ({ ...f, day: String(i) }))}
+                  >
+                    <Text style={[styles.dayChipText, { color: form.day === String(i) ? '#FFF' : colors.foreground, fontFamily: 'Inter_500Medium' }]}>{d}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
             {/* Time */}
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginTop: 20 }]}>HORARIO</Text>
             <View style={styles.timeRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.sublabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Inicio</Text>
-                <View style={styles.timeInputs}>
-                  <TextInput style={[styles.timeInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 10, fontFamily: 'Inter_600SemiBold' }]}
-                    value={form.startHour} onChangeText={v => setForm(f => ({ ...f, startHour: v }))}
-                    keyboardType="number-pad" maxLength={2} placeholder="HH" placeholderTextColor={colors.mutedForeground} />
-                  <Text style={{ color: colors.mutedForeground, fontSize: 20 }}>:</Text>
-                  <TextInput style={[styles.timeInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 10, fontFamily: 'Inter_600SemiBold' }]}
-                    value={form.startMin} onChangeText={v => setForm(f => ({ ...f, startMin: v }))}
-                    keyboardType="number-pad" maxLength={2} placeholder="MM" placeholderTextColor={colors.mutedForeground} />
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>INICIO (H:M)</Text>
+                <View style={styles.timeInputRow}>
+                  <TextInput
+                    style={[styles.timeInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, borderRadius: 10 }]}
+                    value={form.startHour}
+                    onChangeText={v => setForm(f => ({ ...f, startHour: v }))}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="7"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                  <Text style={[{ color: colors.mutedForeground, fontSize: 18 }]}>:</Text>
+                  <TextInput
+                    style={[styles.timeInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, borderRadius: 10 }]}
+                    value={form.startMin}
+                    onChangeText={v => setForm(f => ({ ...f, startMin: v }))}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="00"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
                 </View>
               </View>
-              <Feather name="arrow-right" size={18} color={colors.mutedForeground} style={{ marginTop: 22 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.sublabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Fin</Text>
-                <View style={styles.timeInputs}>
-                  <TextInput style={[styles.timeInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 10, fontFamily: 'Inter_600SemiBold' }]}
-                    value={form.endHour} onChangeText={v => setForm(f => ({ ...f, endHour: v }))}
-                    keyboardType="number-pad" maxLength={2} placeholder="HH" placeholderTextColor={colors.mutedForeground} />
-                  <Text style={{ color: colors.mutedForeground, fontSize: 20 }}>:</Text>
-                  <TextInput style={[styles.timeInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 10, fontFamily: 'Inter_600SemiBold' }]}
-                    value={form.endMin} onChangeText={v => setForm(f => ({ ...f, endMin: v }))}
-                    keyboardType="number-pad" maxLength={2} placeholder="MM" placeholderTextColor={colors.mutedForeground} />
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>FIN (H:M)</Text>
+                <View style={styles.timeInputRow}>
+                  <TextInput
+                    style={[styles.timeInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, borderRadius: 10 }]}
+                    value={form.endHour}
+                    onChangeText={v => setForm(f => ({ ...f, endHour: v }))}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="9"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                  <Text style={[{ color: colors.mutedForeground, fontSize: 18 }]}>:</Text>
+                  <TextInput
+                    style={[styles.timeInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, borderRadius: 10 }]}
+                    value={form.endMin}
+                    onChangeText={v => setForm(f => ({ ...f, endMin: v }))}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="00"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
                 </View>
               </View>
             </View>
 
             {/* Room */}
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginTop: 20 }]}>AULA (OPCIONAL)</Text>
-            <TextInput
-              style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12, fontFamily: 'Inter_400Regular' }]}
-              value={form.room} onChangeText={v => setForm(f => ({ ...f, room: v }))}
-              placeholder="Ej: Aula 3, Lab 2..." placeholderTextColor={colors.mutedForeground}
-            />
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>AULA (OPCIONAL)</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, borderRadius: 12 }]}
+                value={form.room}
+                onChangeText={v => setForm(f => ({ ...f, room: v }))}
+                placeholder="Ej. Sala 3B"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
 
             {/* Teacher */}
-            <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginTop: 20 }]}>DOCENTE (OPCIONAL)</Text>
-            <TextInput
-              style={[styles.input, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12, fontFamily: 'Inter_400Regular' }]}
-              value={form.teacher} onChangeText={v => setForm(f => ({ ...f, teacher: v }))}
-              placeholder="Nombre del docente" placeholderTextColor={colors.mutedForeground}
-            />
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>PROFESOR (OPCIONAL)</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground, borderRadius: 12 }]}
+                value={form.teacher}
+                onChangeText={v => setForm(f => ({ ...f, teacher: v }))}
+                placeholder="Nombre del profesor"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
 
-            {/* Actions */}
+            {/* Save */}
             <Pressable
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary, borderRadius: 14, opacity: pressed ? 0.85 : 1, marginTop: 28 }]}
+              style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary, borderRadius: 14, opacity: pressed ? 0.85 : 1 }]}
               onPress={saveBlock}
             >
               <Text style={[styles.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>
@@ -349,8 +501,8 @@ export default function HorarioScreen() {
 
             {editingId && (
               <Pressable
-                style={({ pressed }) => [styles.deleteBtn, { borderColor: colors.destructive, borderRadius: 14, opacity: pressed ? 0.75 : 1 }]}
-                onPress={() => { Alert.alert('Eliminar clase', '¿Seguro?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Eliminar', style: 'destructive', onPress: () => deleteBlock(editingId!) }]); }}
+                style={({ pressed }) => [styles.deleteBtn, { borderColor: colors.destructive, borderRadius: 14, opacity: pressed ? 0.8 : 1 }]}
+                onPress={() => deleteBlock(editingId)}
               >
                 <Feather name="trash-2" size={16} color={colors.destructive} />
                 <Text style={[styles.deleteBtnText, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>Eliminar clase</Text>
@@ -363,45 +515,50 @@ export default function HorarioScreen() {
   );
 }
 
-const COL_W = 100;
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 12 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  topHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingBottom: 12 },
   title: { fontSize: 28, letterSpacing: -0.5 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9 },
-  addBtnText: { color: '#FFF', fontSize: 14 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyTitle: { fontSize: 18 },
-  emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
-  colHeaders: { flexDirection: 'row', paddingBottom: 6 },
-  colHeader: { width: COL_W, alignItems: 'center' },
-  colHeaderText: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  timeCell: { justifyContent: 'center', paddingRight: 6 },
-  timeText: { fontSize: 10, textAlign: 'right' },
-  dayCol: { width: COL_W, position: 'relative', borderLeftWidth: 1 },
-  hourLine: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1, height: 1 },
-  classBlock: { position: 'absolute', left: 2, right: 2, padding: 4, borderLeftWidth: 3, overflow: 'hidden' },
+  subtitle: { fontSize: 13, marginTop: 2 },
+  headerBtns: { flexDirection: 'row', gap: 8, paddingTop: 4 },
+  iconBtn: { width: 38, height: 38, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  imageBanner: { marginHorizontal: 16, marginBottom: 10, borderRadius: 16, overflow: 'hidden', borderWidth: 1 },
+  imageBannerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 },
+  imageBannerTitle: { fontSize: 13 },
+  imageBannerActions: { flexDirection: 'row', gap: 16, alignItems: 'center' },
+  scheduleImage: { width: '100%', height: 220, backgroundColor: '#0001' },
+  imageHint: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 8, borderRadius: 10, borderWidth: 1 },
+  imageHintText: { fontSize: 12 },
+  imageImportCard: { marginHorizontal: 16, marginBottom: 12, padding: 24, alignItems: 'center', gap: 8, borderWidth: 1, borderStyle: 'dashed' },
+  imageImportTitle: { fontSize: 15 },
+  imageImportSub: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  timeCol: { alignItems: 'center' },
+  timeCell: { justifyContent: 'flex-start', paddingTop: 4, alignItems: 'center' },
+  timeText: { fontSize: 10 },
+  dayCol: { width: 110, borderLeftWidth: 1 },
+  dayHeaderCell: { alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1 },
+  dayHeader: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
+  hourLine: { position: 'absolute', left: 0, right: 0, borderTopWidth: StyleSheet.hairlineWidth },
+  classBlock: { position: 'absolute', left: 2, right: 2, borderRadius: 8, borderLeftWidth: 3, padding: 4, overflow: 'hidden' },
   blockSubject: { fontSize: 11, lineHeight: 14 },
-  blockTime: { fontSize: 9, marginTop: 2 },
-  blockRoom: { fontSize: 9 },
-  // Modal
-  modal: { flex: 1, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  blockTime: { fontSize: 10, marginTop: 1 },
+  blockRoom: { fontSize: 9, marginTop: 1 },
+  modalContainer: { flex: 1 },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  modalTitle: { fontSize: 22 },
-  modalForm: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 8 },
-  label: { fontSize: 11, letterSpacing: 0.8, marginBottom: 8 },
-  sublabel: { fontSize: 12, marginBottom: 6 },
-  input: { fontSize: 15, padding: 13, borderWidth: 1 },
-  dayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  dayChip: { paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
+  modalTitle: { fontSize: 20 },
+  modalContent: { padding: 20, gap: 16 },
+  fieldGroup: { gap: 6 },
+  fieldLabel: { fontSize: 11, letterSpacing: 0.8 },
+  input: { height: 46, paddingHorizontal: 14, borderWidth: 1, fontSize: 15 },
+  daySelector: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  dayChip: { paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1 },
   dayChipText: { fontSize: 13 },
-  timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
-  timeInputs: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  timeInput: { width: 46, height: 44, textAlign: 'center', fontSize: 18, borderWidth: 1 },
-  saveBtn: { height: 52, alignItems: 'center', justifyContent: 'center' },
+  timeRow: { flexDirection: 'row', gap: 12 },
+  timeInputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  timeInput: { width: 52, height: 46, borderWidth: 1, textAlign: 'center', fontSize: 16 },
+  saveBtn: { padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#FFF', fontSize: 16 },
-  deleteBtn: { height: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, marginTop: 12, flexDirection: 'row', gap: 8 },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderWidth: 1, marginTop: -8 },
   deleteBtnText: { fontSize: 15 },
 });

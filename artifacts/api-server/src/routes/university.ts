@@ -48,19 +48,34 @@ router.post("/university/login", async (req, res): Promise<void> => {
 });
 
 router.get("/university/tasks", async (req, res): Promise<void> => {
+  // Never cache — Moodle sessions and task lists change constantly
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.removeHeader("ETag");
+
   const parsed = GetUniversityTasksQueryParams.safeParse(req.query);
   if (!parsed.success) {
-    res.status(401).json({ error: "Session token requerido" });
+    res.status(401).json({ error: "Session token requerido", sessionExpired: false });
     return;
   }
 
   const { sessionToken, sesskey } = parsed.data;
   req.log.info("Fetching university tasks");
 
-  const tasks = await getMoodleTasks(sessionToken, sesskey);
-  req.log.info({ count: tasks.length }, "University tasks fetched");
-
-  res.json({ tasks });
+  try {
+    const tasks = await getMoodleTasks(sessionToken, sesskey);
+    req.log.info({ count: tasks.length }, "University tasks fetched");
+    res.json({ tasks, sessionExpired: false });
+  } catch (err) {
+    if (err instanceof Error && err.message === "SESSION_EXPIRED") {
+      req.log.warn("University session expired — client should re-authenticate");
+      // Return 200 so generated clients don't throw; include sessionExpired flag
+      res.json({ tasks: [], sessionExpired: true });
+      return;
+    }
+    req.log.error({ err }, "Error fetching tasks");
+    res.json({ tasks: [], sessionExpired: false });
+  }
 });
 
 export default router;

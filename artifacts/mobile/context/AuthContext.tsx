@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { universityLogin } from '@workspace/api-client-react';
 
 const AUTH_KEY = '@university_auth_v1';
+const CREDS_KEY = '@university_creds_v1'; // stores username+password for auto-relogin
 
 interface AuthState {
   sessionToken: string | null;
@@ -20,11 +21,9 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (
-    username: string,
-    password: string,
-  ) => Promise<{ success: boolean; error?: string }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  reloginSilently: () => Promise<{ sessionToken: string; sesskey: string } | null>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -39,7 +38,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
-  // Load saved auth from AsyncStorage on mount
   useEffect(() => {
     AsyncStorage.getItem(AUTH_KEY)
       .then(raw => {
@@ -60,46 +58,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .catch(() => setState(prev => ({ ...prev, isLoading: false })));
   }, []);
 
-  const login = useCallback(
-    async (username: string, password: string) => {
-      try {
-        const result = await universityLogin({ username, password });
+  const login = useCallback(async (username: string, password: string) => {
+    try {
+      const result = await universityLogin({ username, password });
 
-        if (!result.success || !result.sessionToken) {
-          return {
-            success: false,
-            error: result.error ?? 'Credenciales incorrectas',
-          };
-        }
-
-        const authData = {
-          sessionToken: result.sessionToken,
-          sesskey: result.sesskey ?? '',
-          userFullname: result.userFullname ?? username,
-          username,
-        };
-
-        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(authData));
-
-        setState({
-          ...authData,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-
-        return { success: true };
-      } catch {
-        return {
-          success: false,
-          error: 'Error de conexión. Verifique su internet.',
-        };
+      if (!result.success || !result.sessionToken) {
+        return { success: false, error: result.error ?? 'Credenciales incorrectas' };
       }
-    },
-    [],
-  );
+
+      const authData = {
+        sessionToken: result.sessionToken,
+        sesskey: result.sesskey ?? '',
+        userFullname: result.userFullname ?? username,
+        username,
+      };
+
+      // Store session + credentials (for silent re-login when session expires)
+      await Promise.all([
+        AsyncStorage.setItem(AUTH_KEY, JSON.stringify(authData)),
+        AsyncStorage.setItem(CREDS_KEY, JSON.stringify({ username, password })),
+      ]);
+
+      setState({ ...authData, isAuthenticated: true, isLoading: false });
+      return { success: true };
+    } catch {
+      return { success: false, error: 'Error de conexión. Verifique su internet.' };
+    }
+  }, []);
+
+  /** Re-authenticates silently using stored credentials. Returns new session or null. */
+  const reloginSilently = useCallback(async (): Promise<{ sessionToken: string; sesskey: string } | null> => {
+    try {
+      const raw = await AsyncStorage.getItem(CREDS_KEY);
+      if (!raw) return null;
+      const { username, password } = JSON.parse(raw);
+      if (!username || !password) return null;
+
+      const result = await universityLogin({ username, password });
+      if (!result.success || !result.sessionToken) return null;
+
+      const authData = {
+        sessionToken: result.sessionToken,
+        sesskey: result.sesskey ?? '',
+        userFullname: result.userFullname ?? username,
+        username,
+      };
+
+      await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(authData));
+      setState(prev => ({ ...prev, ...authData }));
+      return { sessionToken: result.sessionToken, sesskey: result.sesskey ?? '' };
+    } catch {
+      return null;
+    }
+  }, []);
 
   const logout = useCallback(() => {
-    AsyncStorage.removeItem(AUTH_KEY).catch(() => {});
+    AsyncStorage.multiRemove([AUTH_KEY, CREDS_KEY]).catch(() => {});
     setState({
       sessionToken: null,
       sesskey: null,
@@ -111,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, logout, reloginSilently }}>
       {children}
     </AuthContext.Provider>
   );

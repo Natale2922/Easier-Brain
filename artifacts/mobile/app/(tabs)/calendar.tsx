@@ -13,6 +13,7 @@ import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, type Task } from '@/context/TasksContext';
 import { TaskItem } from '@/components/TaskItem';
+import { TaskDetail } from '@/components/TaskDetail';
 
 const DAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS_ES = [
@@ -44,6 +45,7 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(
     today.toISOString().split('T')[0],
   );
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   // Map date string → tasks
   const tasksByDate = useMemo(() => {
@@ -204,7 +206,7 @@ export default function CalendarScreen() {
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              {selectedTasks.map(t => <TaskItem key={t.id} task={t} />)}
+              {selectedTasks.map(t => <TaskItem key={t.id} task={t} onPress={() => setSelectedTask(t)} />)}
             </View>
           )}
         </View>
@@ -226,12 +228,14 @@ export default function CalendarScreen() {
                 </Text>
               );
             }
-            return upcoming.map(t => <TaskItem key={t.id} task={t} />);
+            return upcoming.map(t => <TaskItem key={t.id} task={t} onPress={() => setSelectedTask(t)} />);
           })()}
         </View>
 
         <View style={{ height: Platform.OS === 'web' ? 120 : 100 }} />
       </ScrollView>
+
+      <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)} />
     </View>
   );
 }
