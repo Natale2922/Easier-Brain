@@ -9,7 +9,6 @@ import {
   AppState,
   ActivityIndicator,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -65,6 +64,19 @@ export default function TasksScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [aiDialogVisible, setAiDialogVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  // 2-step logout: 0=normal, 1=confirming
+  const [logoutStep, setLogoutStep] = useState<0 | 1>(0);
+  const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── Auto-logout when session is permanently expired ─────────────────────
+  useEffect(() => {
+    if (syncError === 'SESSION_EXPIRED_FINAL') {
+      const timer = setTimeout(() => {
+        logout();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [syncError, logout]);
 
   // ─── Filtered pending tasks ──────────────────────────────────────────────
   const pendingTasks = useMemo(() => {
@@ -104,11 +116,16 @@ export default function TasksScreen() {
   const doSync = useCallback(async () => {
     if (!isAuthenticated || !sessionToken || !sesskey || isSyncing) return;
     await syncUniversityTasks(sessionToken, sesskey, reloginSilently);
-    // Schedule reminders for all pending tasks with due dates
-    scheduleBulkReminders(tasks.filter(t => !t.completed && t.dueDate));
-  }, [isAuthenticated, sessionToken, sesskey, isSyncing, syncUniversityTasks, reloginSilently, scheduleBulkReminders, tasks]);
+  }, [isAuthenticated, sessionToken, sesskey, isSyncing, syncUniversityTasks, reloginSilently]);
 
-  const INTERVAL_MS = 20 * 60 * 1000; // sync every 20 min
+  // Schedule notifications after tasks load/sync
+  useEffect(() => {
+    if (tasks.length > 0) {
+      scheduleBulkReminders(tasks.filter(t => !t.completed && t.dueDate));
+    }
+  }, [tasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const INTERVAL_MS = 20 * 60 * 1000;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -122,26 +139,22 @@ export default function TasksScreen() {
       sub.remove();
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, sessionToken, sesskey]);
 
-  // ─── Logout ──────────────────────────────────────────────────────────────
-  const handleLogout = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Seguro que quieres cerrar sesión? Las tareas guardadas se mantendrán en el dispositivo.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            logout();
-          },
-        },
-      ],
-    );
+  // ─── Logout (2-tap, no Alert) ─────────────────────────────────────────────
+  const handleLogoutPress = () => {
+    if (logoutStep === 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setLogoutStep(1);
+      if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+      logoutTimerRef.current = setTimeout(() => setLogoutStep(0), 3000);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+      setLogoutStep(0);
+      logout();
+    }
   };
 
   const greeting = () => {
@@ -171,8 +184,20 @@ export default function TasksScreen() {
     }).length;
   };
 
+  const isSessionExpired = syncError === 'SESSION_EXPIRED_FINAL';
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Session expired banner */}
+      {isSessionExpired && (
+        <View style={[styles.expiredBanner, { backgroundColor: colors.destructive }]}>
+          <Feather name="alert-circle" size={14} color="#FFF" />
+          <Text style={[styles.expiredText, { fontFamily: 'Inter_500Medium' }]}>
+            Sesión expirada. Iniciando sesión nuevamente...
+          </Text>
+        </View>
+      )}
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 16, backgroundColor: colors.background }]}>
         <View style={styles.headerRow}>
@@ -198,24 +223,41 @@ export default function TasksScreen() {
                 ? <ActivityIndicator size="small" color={colors.primary} />
                 : <Feather name="refresh-cw" size={16} color={colors.primary} />}
             </Pressable>
-            {/* Logout */}
+            {/* Logout — tap once shows "¿Salir?", tap again confirms */}
             <Pressable
-              onPress={handleLogout}
-              style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 14, opacity: pressed ? 0.7 : 1 }]}
+              onPress={handleLogoutPress}
+              style={({ pressed }) => [
+                styles.iconBtn,
+                {
+                  backgroundColor: logoutStep === 1 ? colors.destructive + '18' : colors.card,
+                  borderColor: logoutStep === 1 ? colors.destructive : colors.border,
+                  borderRadius: 14,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
             >
-              <Feather name="log-out" size={16} color={colors.mutedForeground} />
+              {logoutStep === 1
+                ? <Text style={[styles.logoutConfirmText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>¿Sí?</Text>
+                : <Feather name="log-out" size={16} color={colors.mutedForeground} />}
             </Pressable>
           </View>
         </View>
 
         {/* Sync status */}
         <View style={styles.syncRow}>
-          <View style={[styles.syncDot, { backgroundColor: isSyncing ? colors.primary : syncError ? colors.destructive : '#22C55E' }]} />
+          <View style={[styles.syncDot, {
+            backgroundColor: isSessionExpired ? colors.destructive
+              : isSyncing ? colors.primary
+              : syncError ? '#FFB347'
+              : '#22C55E'
+          }]} />
           <Text style={[styles.syncText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            {isSyncing
+            {isSessionExpired
+              ? 'Sesión expirada — vuelve a iniciar sesión'
+              : isSyncing
               ? 'Sincronizando con campus virtual...'
               : syncError
-              ? syncError
+              ? 'Error de conexión'
               : formatLastSync(lastSyncAt)}
           </Text>
         </View>
@@ -223,17 +265,17 @@ export default function TasksScreen() {
 
       {/* Stats */}
       <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: colors.primary + '14', borderRadius: colors.radius }]}>
+        <View style={[styles.statCard, { backgroundColor: colors.primary + '14', borderRadius: 12 }]}>
           <Text style={[styles.statNumber, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
             {tasks.filter(t => !t.completed).length}
           </Text>
           <Text style={[styles.statLabel, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>Pendientes</Text>
         </View>
-        <View style={[styles.statCard, { backgroundColor: '#22C55E14', borderRadius: colors.radius }]}>
+        <View style={[styles.statCard, { backgroundColor: '#22C55E14', borderRadius: 12 }]}>
           <Text style={[styles.statNumber, { color: '#22C55E', fontFamily: 'Inter_700Bold' }]}>{completedToday}</Text>
-          <Text style={[styles.statLabel, { color: '#22C55E', fontFamily: 'Inter_500Medium' }]}>Hoy completadas</Text>
+          <Text style={[styles.statLabel, { color: '#22C55E', fontFamily: 'Inter_500Medium' }]}>Hoy completas</Text>
         </View>
-        <View style={[styles.statCard, { backgroundColor: '#FFB34714', borderRadius: colors.radius }]}>
+        <View style={[styles.statCard, { backgroundColor: '#FFB34714', borderRadius: 12 }]}>
           <Text style={[styles.statNumber, { color: '#FFB347', fontFamily: 'Inter_700Bold' }]}>
             {tasks.filter(t => t.source === 'university' && !t.completed).length}
           </Text>
@@ -285,10 +327,7 @@ export default function TasksScreen() {
         data={pendingTasks}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <TaskItem
-            task={item}
-            onPress={() => setSelectedTask(item)}
-          />
+          <TaskItem task={item} onPress={() => setSelectedTask(item)} />
         )}
         contentContainerStyle={[
           styles.listContent,
@@ -307,7 +346,7 @@ export default function TasksScreen() {
               </Text>
               <Text style={[styles.emptySubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
                 {filter === 'all'
-                  ? 'No hay tareas pendientes.\nToca ⚡ para agregar con asistente o + para agregar.'
+                  ? 'No hay tareas pendientes.\nToca ⚡ para AI o + para agregar.'
                   : 'No hay tareas con este filtro.'}
               </Text>
             </View>
@@ -331,10 +370,7 @@ export default function TasksScreen() {
         </Pressable>
       </View>
 
-      {/* Task detail modal */}
       <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)} />
-
-      {/* AI dialog */}
       <AITaskDialog visible={aiDialogVisible} onClose={() => setAiDialogVisible(false)} />
     </View>
   );
@@ -342,6 +378,8 @@ export default function TasksScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  expiredBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
+  expiredText: { color: '#FFF', fontSize: 13, flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 10 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   greeting: { fontSize: 13, marginBottom: 1 },
@@ -349,6 +387,7 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
   headerBtns: { flexDirection: 'row', gap: 8, paddingTop: 4 },
   iconBtn: { width: 38, height: 38, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  logoutConfirmText: { fontSize: 11 },
   syncRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   syncDot: { width: 6, height: 6, borderRadius: 3 },
   syncText: { fontSize: 11 },

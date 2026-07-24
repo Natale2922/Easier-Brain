@@ -203,26 +203,29 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       try {
         let result = await doFetch(sessionToken, sesskey);
 
-        // If session expired, attempt silent re-login and retry once
-        if ((result as any).sessionExpired && reloginFn) {
-          const newCreds = await reloginFn();
-          if (newCreds) {
-            result = await doFetch(newCreds.sessionToken, newCreds.sesskey);
+        // Session expired: try silent re-login once
+        if ((result as any).sessionExpired) {
+          if (reloginFn) {
+            const newCreds = await reloginFn();
+            if (newCreds) {
+              result = await doFetch(newCreds.sessionToken, newCreds.sesskey);
+            }
+          }
+          // Still expired (or no creds stored) — signal caller to logout
+          if ((result as any).sessionExpired) {
+            setSyncError('SESSION_EXPIRED_FINAL');
+            return;
           }
         }
 
-        if (!(result as any).sessionExpired) {
-          setTasks(prev => {
-            const updated = applyMoodleTasks(result.tasks, prev);
-            persist(updated);
-            return updated;
-          });
-          const now = new Date().toISOString();
-          setLastSyncAt(now);
-          AsyncStorage.setItem(SYNC_KEY, now).catch(() => {});
-        } else {
-          setSyncError('Sesión expirada. Cerrando sesión...');
-        }
+        setTasks(prev => {
+          const updated = applyMoodleTasks(result.tasks, prev);
+          persist(updated);
+          return updated;
+        });
+        const now = new Date().toISOString();
+        setLastSyncAt(now);
+        AsyncStorage.setItem(SYNC_KEY, now).catch(() => {});
       } catch {
         setSyncError('Error de conexión al sincronizar');
       } finally {
