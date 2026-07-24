@@ -15,7 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
-import { useTasks, type Task } from '@/context/TasksContext';
+import { useTasks, isOverdueArchived, type Task } from '@/context/TasksContext';
 import { useAuth } from '@/context/AuthContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetail } from '@/components/TaskDetail';
@@ -87,6 +87,7 @@ export default function TasksScreen() {
     return tasks
       .filter(t => {
         if (t.completed) return false;
+        if (isOverdueArchived(t)) return false; // auto-archived: show in Archivo tab
         if (filter === 'all') return true;
         const due = t.dueDate ? new Date(t.dueDate).getTime() : null;
         if (filter === 'today') return due !== null && due >= today.start && due <= today.end;
@@ -174,6 +175,7 @@ export default function TasksScreen() {
     const weekEnd = Date.now() + 7 * 86400000;
     return tasks.filter(t => {
       if (t.completed) return false;
+      if (isOverdueArchived(t)) return false;
       const due = t.dueDate ? new Date(t.dueDate).getTime() : null;
       if (f === 'all') return true;
       if (f === 'today') return due !== null && due >= today.start && due <= today.end;

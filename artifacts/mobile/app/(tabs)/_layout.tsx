@@ -59,7 +59,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="done"
         options={{
-          title: 'Listas',
+          title: 'Archivo',
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="checkmark.circle.fill" tintColor={color} size={22} />

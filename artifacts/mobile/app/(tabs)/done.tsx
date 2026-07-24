@@ -1,13 +1,20 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { useTasks, type Task } from '@/context/TasksContext';
+import { useTasks, isOverdueArchived, daysOverdue, type Task } from '@/context/TasksContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetail } from '@/components/TaskDetail';
 
-export default function DoneScreen() {
+export default function ArchiveScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { tasks } = useTasks();
@@ -18,48 +25,172 @@ export default function DoneScreen() {
     () =>
       tasks
         .filter(t => t.completed)
-        .sort((a, b) =>
-          new Date(b.completedAt ?? b.createdAt).getTime() -
-          new Date(a.completedAt ?? a.createdAt).getTime(),
+        .sort(
+          (a, b) =>
+            new Date(b.completedAt ?? b.createdAt).getTime() -
+            new Date(a.completedAt ?? a.createdAt).getTime(),
         ),
     [tasks],
   );
 
+  const overdueTasks = useMemo(
+    () =>
+      tasks
+        .filter(t => isOverdueArchived(t))
+        .sort((a, b) => daysOverdue(b) - daysOverdue(a)), // most overdue first
+    [tasks],
+  );
+
+  const totalArchived = completedTasks.length + overdueTasks.length;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 20, backgroundColor: colors.background }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-          Completadas
-        </Text>
-        <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-          {completedTasks.length} {completedTasks.length === 1 ? 'tarea completada' : 'tareas completadas'}
-        </Text>
-      </View>
-
-      <FlatList
-        data={completedTasks}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <TaskItem task={item} onPress={() => setSelectedTask(item)} />
-        )}
-        contentContainerStyle={[
-          styles.listContent,
-          completedTasks.length === 0 && styles.emptyContent,
-          { paddingBottom: Platform.OS === 'web' ? 120 : 100 },
+      {/* Header */}
+      <View
+        style={[
+          styles.header,
+          { paddingTop: topInset + 20, backgroundColor: colors.background },
         ]}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Feather name="award" size={52} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-              Sin completadas aún
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              Las tareas que marques como listas{'\n'}aparecerán aquí.
+      >
+        <Text
+          style={[
+            styles.headerTitle,
+            { color: colors.foreground, fontFamily: 'Inter_700Bold' },
+          ]}
+        >
+          Archivo
+        </Text>
+        <View style={styles.headerStats}>
+          <View style={[styles.statPill, { backgroundColor: '#22C55E18' }]}>
+            <Feather name="check-circle" size={11} color="#22C55E" />
+            <Text
+              style={[
+                styles.statText,
+                { color: '#22C55E', fontFamily: 'Inter_600SemiBold' },
+              ]}
+            >
+              {completedTasks.length} completadas
             </Text>
           </View>
-        }
-      />
+          {overdueTasks.length > 0 && (
+            <View style={[styles.statPill, { backgroundColor: '#FF7B7B18' }]}>
+              <Feather name="alert-circle" size={11} color="#FF7B7B" />
+              <Text
+                style={[
+                  styles.statText,
+                  { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' },
+                ]}
+              >
+                {overdueTasks.length} vencidas
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scroll,
+          totalArchived === 0 && styles.emptyScroll,
+          { paddingBottom: Platform.OS === 'web' ? 120 : 100 },
+        ]}
+      >
+        {/* ── Overdue-archived section ──────────────────────────────────── */}
+        {overdueTasks.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.sectionDot, { backgroundColor: '#FF7B7B' }]} />
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' },
+                ]}
+              >
+                Vencidas — archivadas automáticamente
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.sectionSub,
+                { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+              ]}
+            >
+              Estas tareas superaron su fecha límite por más de 2 días y se archivaron de forma automática.
+            </Text>
+            <View style={styles.list}>
+              {overdueTasks.map(task => (
+                <View key={task.id}>
+                  <View style={styles.overdueDaysBadge}>
+                    <Text
+                      style={[
+                        styles.overdueDaysText,
+                        { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' },
+                      ]}
+                    >
+                      {daysOverdue(task)}d vencida
+                    </Text>
+                  </View>
+                  <TaskItem
+                    task={task}
+                    overdueArchived
+                    onPress={() => setSelectedTask(task)}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* ── Completed section ─────────────────────────────────────────── */}
+        {completedTasks.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.sectionDot, { backgroundColor: '#22C55E' }]} />
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: '#22C55E', fontFamily: 'Inter_600SemiBold' },
+                ]}
+              >
+                Completadas
+              </Text>
+            </View>
+            <View style={styles.list}>
+              {completedTasks.map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onPress={() => setSelectedTask(task)}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* ── Empty state ───────────────────────────────────────────────── */}
+        {totalArchived === 0 && (
+          <View style={styles.emptyState}>
+            <Feather name="archive" size={52} color={colors.border} />
+            <Text
+              style={[
+                styles.emptyTitle,
+                { color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+              ]}
+            >
+              Archivo vacío
+            </Text>
+            <Text
+              style={[
+                styles.emptySubtitle,
+                { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+              ]}
+            >
+              Las tareas completadas y las vencidas{'\n'}por más de 2 días aparecerán aquí.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
 
       <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)} />
     </View>
@@ -68,12 +199,35 @@ export default function DoneScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 20 },
+  header: { paddingHorizontal: 20, paddingBottom: 16 },
   headerTitle: { fontSize: 28, letterSpacing: -0.5 },
-  headerSub: { fontSize: 14, marginTop: 4 },
-  listContent: { paddingHorizontal: 20, gap: 10 },
-  emptyContent: { flex: 1 },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
+  headerStats: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  statPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  statText: { fontSize: 12 },
+  scroll: { paddingHorizontal: 20, gap: 8 },
+  emptyScroll: { flex: 1 },
+  section: { gap: 10 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  sectionDot: { width: 8, height: 8, borderRadius: 4 },
+  sectionTitle: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8 },
+  sectionSub: { fontSize: 12, lineHeight: 18, marginTop: -4 },
+  list: { gap: 10 },
+  overdueDaysBadge: { alignSelf: 'flex-start', marginBottom: 2, marginLeft: 4 },
+  overdueDaysText: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6 },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 80,
+    gap: 12,
+  },
   emptyTitle: { fontSize: 18, marginTop: 4 },
   emptySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
 });

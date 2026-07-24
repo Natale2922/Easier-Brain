@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { type Task, type Priority, useTasks } from '@/context/TasksContext';
@@ -22,8 +22,9 @@ const DELIVERY_CONFIG = {
 };
 
 function formatDueDate(isoString: string): string {
-  const date = new Date(isoString);
+  const date = new Date(isoString + 'T23:59:59');
   const diffDays = Math.ceil((date.getTime() - Date.now()) / 86400000);
+  if (diffDays < -2) return `Vencida hace ${Math.abs(diffDays)}d`;
   if (diffDays < 0) return 'Vencida';
   if (diffDays === 0) return 'Hoy';
   if (diffDays === 1) return 'Mañana';
@@ -31,7 +32,7 @@ function formatDueDate(isoString: string): string {
   return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 function getDueDateColor(isoString: string): string {
-  const diffDays = Math.ceil((new Date(isoString).getTime() - Date.now()) / 86400000);
+  const diffDays = Math.ceil((new Date(isoString + 'T23:59:59').getTime() - Date.now()) / 86400000);
   if (diffDays <= 0) return '#FF7B7B';
   if (diffDays <= 1) return '#FF7B7B';
   if (diffDays <= 3) return '#FFB347';
@@ -41,9 +42,11 @@ function getDueDateColor(isoString: string): string {
 interface Props {
   task: Task;
   onPress?: () => void;
+  /** Shows a red "VENCIDA" badge and dims the card (used in archive section) */
+  overdueArchived?: boolean;
 }
 
-export function TaskItem({ task, onPress }: Props) {
+export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
   const colors = useColors();
   const { toggleTask, deleteTask } = useTasks();
   const checkScale = useRef(new Animated.Value(task.completed ? 1 : 0)).current;
@@ -51,8 +54,14 @@ export function TaskItem({ task, onPress }: Props) {
 
   const priorityColor = PRIORITY_COLORS[task.priority];
   const deliveryCfg = task.deliveryMethod ? DELIVERY_CONFIG[task.deliveryMethod] : null;
+  const stripeColor = overdueArchived
+    ? '#FF7B7B'
+    : task.completed
+    ? colors.border
+    : priorityColor;
 
   const handleToggle = () => {
+    if (overdueArchived) return; // archived overdue tasks can't be toggled from archive
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!task.completed) {
       Animated.sequence([
@@ -67,72 +76,189 @@ export function TaskItem({ task, onPress }: Props) {
 
   const handleDelete = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Animated.timing(rowOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => deleteTask(task.id));
+    Animated.timing(rowOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() =>
+      deleteTask(task.id),
+    );
   };
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: colors.card, borderRadius: 16, borderColor: colors.border, opacity: rowOpacity }]}>
-      {/* Priority stripe */}
-      <View style={[styles.stripe, { backgroundColor: task.completed ? colors.border : priorityColor }]} />
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          backgroundColor: overdueArchived ? '#FF7B7B08' : colors.card,
+          borderRadius: 16,
+          borderColor: overdueArchived ? '#FF7B7B30' : colors.border,
+          opacity: rowOpacity,
+        },
+      ]}
+    >
+      {/* Priority / overdue stripe */}
+      <View style={[styles.stripe, { backgroundColor: stripeColor }]} />
 
-      {/* Checkbox */}
-      <Pressable onPress={handleToggle} style={styles.checkArea} hitSlop={8}>
-        <View style={[styles.circle, { borderColor: task.completed ? priorityColor : colors.border, backgroundColor: task.completed ? priorityColor + '22' : 'transparent', borderRadius: 11 }]}>
+      {/* Checkbox — hidden for overdue-archived, shown for normal */}
+      <Pressable
+        onPress={handleToggle}
+        style={styles.checkArea}
+        hitSlop={8}
+        disabled={overdueArchived}
+      >
+        <View
+          style={[
+            styles.circle,
+            {
+              borderColor: overdueArchived
+                ? '#FF7B7B60'
+                : task.completed
+                ? priorityColor
+                : colors.border,
+              backgroundColor: task.completed ? priorityColor + '22' : 'transparent',
+              borderRadius: 11,
+            },
+          ]}
+        >
           <Animated.View style={{ transform: [{ scale: checkScale }] }}>
-            <Ionicons name="checkmark" size={13} color={priorityColor} />
+            <Feather
+              name="check"
+              size={13}
+              color={overdueArchived ? '#FF7B7B60' : priorityColor}
+            />
           </Animated.View>
         </View>
       </Pressable>
 
-      {/* Content — pressable to open details */}
+      {/* Content */}
       <Pressable style={styles.content} onPress={onPress} disabled={!onPress}>
-        <Text style={[styles.title, { color: task.completed ? colors.mutedForeground : colors.foreground, textDecorationLine: task.completed ? 'line-through' : 'none', fontFamily: 'Inter_500Medium' }]} numberOfLines={2}>
+        <Text
+          style={[
+            styles.title,
+            {
+              color: task.completed || overdueArchived ? colors.mutedForeground : colors.foreground,
+              textDecorationLine: task.completed ? 'line-through' : 'none',
+              fontFamily: 'Inter_500Medium',
+            },
+          ]}
+          numberOfLines={2}
+        >
           {task.title}
         </Text>
+
         {task.note ? (
-          <Text style={[styles.note, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>{task.note}</Text>
+          <Text
+            style={[styles.note, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}
+            numberOfLines={1}
+          >
+            {task.note}
+          </Text>
         ) : null}
-        {/* Instructions preview */}
+
         {task.instructions && !task.note ? (
-          <Text style={[styles.note, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+          <Text
+            style={[styles.note, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}
+            numberOfLines={1}
+          >
             📋 {task.instructions.substring(0, 60)}...
           </Text>
         ) : null}
+
         <View style={styles.metaRow}>
-          <View style={[styles.badge, { backgroundColor: priorityColor + '18', borderRadius: 6 }]}>
-            <View style={[styles.badgeDot, { backgroundColor: priorityColor }]} />
-            <Text style={[styles.badgeText, { color: priorityColor, fontFamily: 'Inter_600SemiBold' }]}>{PRIORITY_LABELS[task.priority]}</Text>
-          </View>
+          {/* Overdue badge — replaces priority badge */}
+          {overdueArchived ? (
+            <View style={[styles.badge, { backgroundColor: '#FF7B7B18', borderRadius: 6 }]}>
+              <Feather name="alert-circle" size={9} color="#FF7B7B" />
+              <Text style={[styles.badgeText, { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' }]}>
+                VENCIDA
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.badge, { backgroundColor: priorityColor + '18', borderRadius: 6 }]}>
+              <View style={[styles.badgeDot, { backgroundColor: priorityColor }]} />
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: priorityColor, fontFamily: 'Inter_600SemiBold' },
+                ]}
+              >
+                {PRIORITY_LABELS[task.priority]}
+              </Text>
+            </View>
+          )}
+
           {task.courseName ? (
             <View style={[styles.badge, { backgroundColor: colors.primary + '14', borderRadius: 6 }]}>
               <Feather name="book" size={9} color={colors.primary} />
-              <Text style={[styles.badgeText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>{task.courseName}</Text>
-            </View>
-          ) : null}
-          {task.dueDate && !task.completed ? (
-            <View style={[styles.badge, { backgroundColor: getDueDateColor(task.dueDate) + '18', borderRadius: 6 }]}>
-              <Feather name="clock" size={9} color={getDueDateColor(task.dueDate)} />
-              <Text style={[styles.badgeText, { color: getDueDateColor(task.dueDate), fontFamily: 'Inter_500Medium' }]}>
-                {formatDueDate(task.dueDate)}{task.dueTime ? ` ${task.dueTime}` : ''}
+              <Text
+                style={[styles.badgeText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}
+                numberOfLines={1}
+              >
+                {task.courseName}
               </Text>
             </View>
           ) : null}
-          {deliveryCfg && !task.completed ? (
-            <View style={[styles.badge, { backgroundColor: deliveryCfg.color + '18', borderRadius: 6 }]}>
-              <Feather name={deliveryCfg.icon} size={9} color={deliveryCfg.color} />
-              <Text style={[styles.badgeText, { color: deliveryCfg.color, fontFamily: 'Inter_500Medium' }]}>{deliveryCfg.label}</Text>
+
+          {task.dueDate && !task.completed ? (
+            <View
+              style={[
+                styles.badge,
+                {
+                  backgroundColor: getDueDateColor(task.dueDate) + '18',
+                  borderRadius: 6,
+                },
+              ]}
+            >
+              <Feather name="clock" size={9} color={getDueDateColor(task.dueDate)} />
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: getDueDateColor(task.dueDate), fontFamily: 'Inter_500Medium' },
+                ]}
+              >
+                {formatDueDate(task.dueDate)}
+                {task.dueTime ? ` ${task.dueTime}` : ''}
+              </Text>
             </View>
           ) : null}
+
+          {deliveryCfg && !task.completed && !overdueArchived ? (
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: deliveryCfg.color + '18', borderRadius: 6 },
+              ]}
+            >
+              <Feather name={deliveryCfg.icon} size={9} color={deliveryCfg.color} />
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: deliveryCfg.color, fontFamily: 'Inter_500Medium' },
+                ]}
+              >
+                {deliveryCfg.label}
+              </Text>
+            </View>
+          ) : null}
+
           {task.source === 'university' ? (
             <View style={[styles.badge, { backgroundColor: '#10B98118', borderRadius: 6 }]}>
               <Feather name="globe" size={9} color="#10B981" />
-              <Text style={[styles.badgeText, { color: '#10B981', fontFamily: 'Inter_500Medium' }]}>Campus</Text>
+              <Text
+                style={[styles.badgeText, { color: '#10B981', fontFamily: 'Inter_500Medium' }]}
+              >
+                Campus
+              </Text>
             </View>
           ) : null}
         </View>
-        {/* Tap hint */}
-        {onPress && !task.completed ? (
-          <Text style={[styles.tapHint, { color: colors.mutedForeground + '80', fontFamily: 'Inter_400Regular' }]}>Toca para ver detalles</Text>
+
+        {onPress && !task.completed && !overdueArchived ? (
+          <Text
+            style={[
+              styles.tapHint,
+              { color: colors.mutedForeground + '80', fontFamily: 'Inter_400Regular' },
+            ]}
+          >
+            Toca para ver detalles
+          </Text>
         ) : null}
       </Pressable>
 
@@ -145,7 +271,17 @@ export function TaskItem({ task, onPress }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', overflow: 'hidden', borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1 },
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
+  },
   stripe: { width: 3, alignSelf: 'stretch' },
   checkArea: { padding: 14, paddingRight: 10 },
   circle: { width: 22, height: 22, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

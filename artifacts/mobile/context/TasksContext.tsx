@@ -13,6 +13,24 @@ export type Priority = 'low' | 'medium' | 'high';
 export type TaskSource = 'manual' | 'university';
 export type DeliveryMethod = 'campus' | 'email' | 'class';
 
+/**
+ * A task is automatically archived (moved out of pending, into archive)
+ * when it is more than 2 full days past its due date and still not completed.
+ */
+export function isOverdueArchived(task: Task): boolean {
+  if (task.completed) return false;
+  if (!task.dueDate) return false;
+  const dueEnd = new Date(task.dueDate + 'T23:59:59');
+  return (Date.now() - dueEnd.getTime()) / 86400000 > 2;
+}
+
+/** How many full days past due (0 if not overdue). */
+export function daysOverdue(task: Task): number {
+  if (!task.dueDate) return 0;
+  const dueEnd = new Date(task.dueDate + 'T23:59:59');
+  return Math.max(0, Math.floor((Date.now() - dueEnd.getTime()) / 86400000));
+}
+
 export interface Task {
   id: string;
   title: string;
