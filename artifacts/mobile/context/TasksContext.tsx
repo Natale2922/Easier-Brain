@@ -1,3 +1,4 @@
+import { parseDueDate } from "../utils/date";
 import React, {
   createContext,
   useContext,
@@ -19,18 +20,22 @@ export type DeliveryMethod = 'campus' | 'email' | 'class';
  */
 export function isOverdueArchived(task: Task): boolean {
   if (task.completed) return false;
-  if (!task.dueDate) return false;
-  const dueEnd = new Date(task.dueDate + 'T23:59:59');
+const dueEnd = parseDueDate(task.dueDate);
+  if (!dueEnd) return false;
   return (Date.now() - dueEnd.getTime()) / 86400000 > 2;
 }
 
 /** How many full days past due (0 if not overdue). */
 export function daysOverdue(task: Task): number {
-  if (!task.dueDate) return 0;
-  const dueEnd = new Date(task.dueDate + 'T23:59:59');
-  return Math.max(0, Math.floor((Date.now() - dueEnd.getTime()) / 86400000));
-}
+  const dueEnd = parseDueDate(task.dueDate);
 
+  if (!dueEnd) return 0;
+
+  return Math.max(
+    0,
+    Math.floor((Date.now() - dueEnd.getTime()) / 86400000),
+  );
+}
 export interface Task {
   id: string;
   title: string;
