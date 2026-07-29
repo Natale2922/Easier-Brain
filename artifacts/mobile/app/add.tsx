@@ -16,7 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, type Priority, type DeliveryMethod } from '@/context/TasksContext';
-import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
+import { KeyboardAwareScrollViewCompat } from '@/components/common/KeyboardAwareScrollViewCompat';
 
 const PRIORITIES: { value: Priority; label: string; color: string; icon: string }[] = [
   { value: 'high', label: 'Alta', color: '#FF7B7B', icon: 'alert-circle' },

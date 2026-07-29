@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Mis Tareas",
-    "slug": "mobile",
+    "name": "Nuvo",
+    "slug": "nuvo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "nuvo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {

@@ -13,8 +13,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, type Task } from '@/context/TasksContext';
-import { TaskItem } from '@/components/TaskItem';
-import { TaskDetail } from '@/components/TaskDetail';
+import { TaskItem } from '@/components/tasks/TaskItem';
+import { TaskDetail } from '@/components/tasks/TaskDetail';
 
 function SubjectCard({
   courseName,

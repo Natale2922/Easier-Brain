@@ -17,9 +17,9 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, isOverdueArchived, type Task } from '@/context/TasksContext';
 import { useAuth } from '@/context/AuthContext';
-import { TaskItem } from '@/components/TaskItem';
-import { TaskDetail } from '@/components/TaskDetail';
-import { AITaskDialog } from '@/components/AITaskDialog';
+import { TaskItem } from '@/components/tasks/TaskItem';
+import { TaskDetail } from '@/components/tasks/TaskDetail';
+import { AITaskDialog } from '@/components/ai/AITaskDialog';
 import { useNotifications } from '@/hooks/useNotifications';
 
 type Filter = 'all' | 'today' | 'tomorrow' | 'week' | 'nodate';

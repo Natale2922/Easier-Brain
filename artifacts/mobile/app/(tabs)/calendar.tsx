@@ -12,8 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, type Task } from '@/context/TasksContext';
-import { TaskItem } from '@/components/TaskItem';
-import { TaskDetail } from '@/components/TaskDetail';
+import { TaskItem } from '@/components/tasks/TaskItem';
+import { TaskDetail } from '@/components/tasks/TaskDetail';
 
 const DAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS_ES = [

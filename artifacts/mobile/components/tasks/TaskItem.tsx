@@ -1,4 +1,4 @@
-import { parseDueDate } from "../utils/date";
+import { parseDueDate } from "../../utils/date";
 import React, { useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Animated } from "react-native";
 import { Feather } from "@expo/vector-icons";
