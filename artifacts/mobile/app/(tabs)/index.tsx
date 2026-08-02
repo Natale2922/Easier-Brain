@@ -1,3 +1,7 @@
+import FloatingActions from "@/components/dashboard/FloatingActions";
+import TaskList from "@/components/dashboard/TaskList";
+import DashboardStats from "@/components/dashboard/DashboardStats";
+import FilterBar from "@/components/dashboard/FilterBar";
 import React, { useMemo, useEffect, useCallback, useRef, useState } from 'react';
 import {
   View,
@@ -266,113 +270,40 @@ export default function TasksScreen() {
       </View>
 
       {/* Stats */}
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: colors.primary + '14', borderRadius: 12 }]}>
-          <Text style={[styles.statNumber, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
-            {tasks.filter(t => !t.completed).length}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>Pendientes</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#22C55E14', borderRadius: 12 }]}>
-          <Text style={[styles.statNumber, { color: '#22C55E', fontFamily: 'Inter_700Bold' }]}>{completedToday}</Text>
-          <Text style={[styles.statLabel, { color: '#22C55E', fontFamily: 'Inter_500Medium' }]}>Hoy completas</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#FFB34714', borderRadius: 12 }]}>
-          <Text style={[styles.statNumber, { color: '#FFB347', fontFamily: 'Inter_700Bold' }]}>
-            {tasks.filter(t => t.source === 'university' && !t.completed).length}
-          </Text>
-          <Text style={[styles.statLabel, { color: '#FFB347', fontFamily: 'Inter_500Medium' }]}>Del campus</Text>
-        </View>
-      </View>
-
-      {/* Filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-        style={{ maxHeight: 46 }}
-      >
-        {FILTERS.map(f => {
-          const count = filterCount(f.key);
-          const active = filter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              style={({ pressed }) => [
-                styles.filterChip,
-                {
-                  backgroundColor: active ? colors.primary : colors.card,
-                  borderColor: active ? colors.primary : colors.border,
-                  borderRadius: 20,
-                  opacity: pressed ? 0.8 : 1,
-                },
-              ]}
-              onPress={() => { Haptics.selectionAsync(); setFilter(f.key); }}
-            >
-              <Text style={[styles.filterText, { color: active ? '#FFF' : colors.mutedForeground, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
-                {f.label}
-              </Text>
-              {count > 0 && (
-                <View style={[styles.filterBadge, { backgroundColor: active ? '#FFFFFF33' : colors.primary + '18' }]}>
-                  <Text style={[styles.filterBadgeText, { color: active ? '#FFF' : colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-                    {count}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      {/* Task list */}
-      <FlatList
-        data={pendingTasks}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <TaskItem task={item} onPress={() => setSelectedTask(item)} />
-        )}
-        contentContainerStyle={[
-          styles.listContent,
-          pendingTasks.length === 0 && styles.emptyContent,
-          { paddingBottom: Platform.OS === 'web' ? 140 : 120 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        refreshing={isSyncing}
-        onRefresh={doSync}
-        ListEmptyComponent={
-          !isLoading ? (
-            <View style={styles.emptyState}>
-              <Feather name="check-circle" size={52} color={colors.border} />
-              <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-                {filter === 'all' ? 'Todo al día ✓' : 'Sin tareas aquí'}
-              </Text>
-              <Text style={[styles.emptySubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                {filter === 'all'
-                  ? 'No hay tareas pendientes.\nToca ⚡ para AI o + para agregar.'
-                  : 'No hay tareas con este filtro.'}
-              </Text>
-            </View>
-          ) : null
+      <DashboardStats
+        pending={tasks.filter((t) => !t.completed).length}
+        completedToday={completedToday}
+        university={
+          tasks.filter((t) => t.source === "university" && !t.completed).length
         }
+      />
+      
+      {/* Filters */}
+<FilterBar
+  filters={FILTERS}
+  selected={filter}
+  getCount={filterCount}
+  onSelect={setFilter}
+/>
+      {/* Task list */}
+      <TaskList
+        pendingTasks={pendingTasks}
+        isLoading={isLoading}
+        isSyncing={isSyncing}
+        doSync={doSync}
+        setSelectedTask={setSelectedTask}
+        TaskItem={TaskItem}
+        styles={styles}
+        colors={colors}
+        filter={filter}
       />
 
       {/* FABs */}
-      <View style={[styles.fabGroup, { bottom: Platform.OS === 'web' ? 106 : 90 }]}>
-        <Pressable
-          style={({ pressed }) => [styles.fabSecondary, { backgroundColor: colors.secondary, borderRadius: 20, opacity: pressed ? 0.85 : 1 }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAiDialogVisible(true); }}
-        >
-          <Feather name="zap" size={20} color={colors.primary} />
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.fab, { backgroundColor: colors.primary, borderRadius: 28, opacity: pressed ? 0.85 : 1 }]}
-          onPress={() => router.push('/add')}
-        >
-          <Feather name="plus" size={26} color="#FFFFFF" />
-        </Pressable>
-      </View>
-
-      <TaskDetail task={selectedTask} onClose={() => setSelectedTask(null)} />
+<FloatingActions
+  styles={styles}
+  colors={colors}
+  setAiDialogVisible={setAiDialogVisible}
+/>
       <AITaskDialog visible={aiDialogVisible} onClose={() => setAiDialogVisible(false)} />
     </View>
   );
