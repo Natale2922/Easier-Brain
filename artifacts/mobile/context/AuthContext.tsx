@@ -10,6 +10,7 @@ import { universityLogin } from '@workspace/api-client-react';
 
 const AUTH_KEY = '@university_auth_v1';
 const CREDS_KEY = '@university_creds_v1'; // stores username+password for auto-relogin
+export const FIRST_LOGIN_KEY = '@university_first_login_v1';
 
 interface AuthState {
   sessionToken: string | null;
@@ -77,6 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await Promise.all([
         AsyncStorage.setItem(AUTH_KEY, JSON.stringify(authData)),
         AsyncStorage.setItem(CREDS_KEY, JSON.stringify({ username, password })),
+        AsyncStorage.getItem(FIRST_LOGIN_KEY).then(firstLogin =>
+          firstLogin
+            ? null
+            : AsyncStorage.setItem(FIRST_LOGIN_KEY, new Date().toISOString()),
+        ),
       ]);
 
       setState({ ...authData, isAuthenticated: true, isLoading: false });

@@ -10,7 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { useTasks, isOverdueArchived, daysOverdue, type Task } from '@/context/TasksContext';
+import { useTasks, isOverdue, daysOverdue, type Task } from '@/context/TasksContext';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { TaskDetail } from '@/components/tasks/TaskDetail';
 
@@ -36,7 +36,7 @@ export default function ArchiveScreen() {
   const overdueTasks = useMemo(
     () =>
       tasks
-        .filter(t => isOverdueArchived(t))
+        .filter(t => isOverdue(t))
         .sort((a, b) => daysOverdue(b) - daysOverdue(a)), // most overdue first
     [tasks],
   );
@@ -107,7 +107,7 @@ export default function ArchiveScreen() {
                   { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' },
                 ]}
               >
-                Vencidas — archivadas automáticamente
+                Vencidas
               </Text>
             </View>
             <Text
@@ -116,7 +116,7 @@ export default function ArchiveScreen() {
                 { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
               ]}
             >
-              Estas tareas superaron su fecha límite por más de 2 días y se archivaron de forma automática.
+              Las tareas vencidas salen de Pendientes automáticamente. Las que llevan más de 2 días se conservan aquí como archivadas.
             </Text>
             <View style={styles.list}>
               {overdueTasks.map(task => (

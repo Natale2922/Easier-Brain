@@ -13,6 +13,7 @@ export interface MoodleTask {
   title: string;
   courseName: string;
   dueDate: string | null;
+  dueTime?: string | null;
   description: string | null;
   url: string | null;
 }
@@ -236,6 +237,9 @@ export async function getMoodleTasks(
                 dueDate: e.timesort
                   ? new Date(Number(e.timesort) * 1000).toISOString()
                   : null,
+                dueTime: e.timesort
+                  ? new Date(Number(e.timesort) * 1000).toISOString().substring(11, 16)
+                  : null,
                 description: e.description
                   ? String(e.description)
                       .replace(/<[^>]+>/g, " ")
@@ -307,6 +311,7 @@ async function scrapeUpcomingEvents(
         title: cleanTitle(title),
         courseName,
         dueDate: null,
+        dueTime: null,
         description: null,
         url: href,
       });

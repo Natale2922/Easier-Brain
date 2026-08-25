@@ -19,7 +19,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
-import { useTasks, isOverdueArchived, type Task } from '@/context/TasksContext';
+import { useTasks, isOverdue, type Task } from '@/context/TasksContext';
 import { useAuth } from '@/context/AuthContext';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { TaskDetail } from '@/components/tasks/TaskDetail';
@@ -57,6 +57,11 @@ function dayBounds(offsetDays: number) {
   return { start, end };
 }
 
+function parseDateKey(value: string): number {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day).getTime();
+}
+
 export default function TasksScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -91,7 +96,7 @@ export default function TasksScreen() {
     return tasks
       .filter(t => {
         if (t.completed) return false;
-        if (isOverdueArchived(t)) return false; // auto-archived: show in Archivo tab
+        if (isOverdue(t)) return false; // all overdue tasks live in Archivo
         if (filter === 'all') return true;
         const due = t.dueDate ? new Date(t.dueDate).getTime() : null;
         if (filter === 'today') return due !== null && due >= today.start && due <= today.end;
@@ -104,7 +109,7 @@ export default function TasksScreen() {
         if (a.dueDate && !b.dueDate) return -1;
         if (!a.dueDate && b.dueDate) return 1;
         if (a.dueDate && b.dueDate)
-          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+          return parseDateKey(a.dueDate) - parseDateKey(b.dueDate);
         const ord = { high: 0, medium: 1, low: 2 } as const;
         return ord[a.priority] - ord[b.priority];
       });
@@ -125,10 +130,8 @@ export default function TasksScreen() {
 
   // Schedule notifications after tasks load/sync
   useEffect(() => {
-    if (tasks.length > 0) {
-      scheduleBulkReminders(tasks.filter(t => !t.completed && t.dueDate));
-    }
-  }, [tasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    scheduleBulkReminders(tasks.filter(t => !t.completed && t.dueDate && !isOverdue(t)));
+  }, [tasks, scheduleBulkReminders]);
 
   const INTERVAL_MS = 20 * 60 * 1000;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -179,8 +182,8 @@ export default function TasksScreen() {
     const weekEnd = Date.now() + 7 * 86400000;
     return tasks.filter(t => {
       if (t.completed) return false;
-      if (isOverdueArchived(t)) return false;
-      const due = t.dueDate ? new Date(t.dueDate).getTime() : null;
+      if (isOverdue(t)) return false;
+      const due = t.dueDate ? parseDateKey(t.dueDate) : null;
       if (f === 'all') return true;
       if (f === 'today') return due !== null && due >= today.start && due <= today.end;
       if (f === 'tomorrow') return due !== null && due >= tomorrow.start && due <= tomorrow.end;

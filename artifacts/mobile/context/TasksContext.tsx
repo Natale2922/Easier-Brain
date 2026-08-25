@@ -1,4 +1,4 @@
-import { parseDueDate } from "../utils/date";
+import { parseTaskDueDate } from "../utils/date";
 import React, {
   createContext,
   useContext,
@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getUniversityTasks } from '@workspace/api-client-react';
+import { FIRST_LOGIN_KEY } from './AuthContext';
 
 export type Priority = 'low' | 'medium' | 'high';
 export type TaskSource = 'manual' | 'university';
@@ -20,14 +21,21 @@ export type DeliveryMethod = 'campus' | 'email' | 'class';
  */
 export function isOverdueArchived(task: Task): boolean {
   if (task.completed) return false;
-const dueEnd = parseDueDate(task.dueDate);
+  const dueEnd = parseTaskDueDate(task.dueDate, task.dueTime);
   if (!dueEnd) return false;
   return (Date.now() - dueEnd.getTime()) / 86400000 > 2;
 }
 
+/** A task is overdue as soon as its local due date has ended. */
+export function isOverdue(task: Task): boolean {
+  if (task.completed || !task.dueDate) return false;
+  const dueEnd = parseTaskDueDate(task.dueDate, task.dueTime);
+  return !!dueEnd && dueEnd.getTime() < Date.now();
+}
+
 /** How many full days past due (0 if not overdue). */
 export function daysOverdue(task: Task): number {
-  const dueEnd = parseDueDate(task.dueDate);
+  const dueEnd = parseTaskDueDate(task.dueDate, task.dueTime);
 
   if (!dueEnd) return 0;
 
@@ -88,6 +96,18 @@ const TasksContext = createContext<TasksContextType | null>(null);
 
 const STORAGE_KEY = '@tasks_v2';
 const SYNC_KEY = '@last_sync';
+
+function normalizeMoodleDate(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const date = parseTaskDueDate(value);
+  if (!date) return undefined;
+  // Keep a local date key. This prevents UTC midnight from showing as
+  // the previous/next day in Mexico and other non-UTC time zones.
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -175,7 +195,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const applyMoodleTasks = useCallback(
     (moodleTasks: any[], prevTasks: Task[]): Task[] => {
       const manualTasks = prevTasks.filter(t => t.source !== 'university');
-      const existingUni = prevTasks.filter(t => t.source === 'university');
+      const existingUni = prevTasks.filter(
+        t => t.source === 'university' && shouldKeepTaskFromFirstLogin(t),
+      );
       const existingMap = new Map(existingUni.map(t => [t.externalId, t]));
 
       const updatedUni: Task[] = moodleTasks.map(mTask => {
@@ -185,7 +207,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
             ...existing,
             title: mTask.title,
             courseName: mTask.courseName || undefined,
-            dueDate: mTask.dueDate || undefined,
+            dueDate: normalizeMoodleDate(mTask.dueDate),
+            dueTime: mTask.dueTime || existing.dueTime,
             instructions: mTask.description || existing.instructions,
             campusUrl: mTask.url || existing.campusUrl,
           };
@@ -198,7 +221,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
           note: undefined,
           instructions: mTask.description || undefined,
           campusUrl: mTask.url || undefined,
-          dueDate: mTask.dueDate || undefined,
+          dueDate: normalizeMoodleDate(mTask.dueDate),
+          dueTime: mTask.dueTime || undefined,
           priority: 'medium' as Priority,
           completed: false,
           source: 'university' as TaskSource,
@@ -210,6 +234,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+
+  function shouldKeepTaskFromFirstLogin(task: Task): boolean {
+    if (!task.dueDate) return false;
+    return isAfterFirstLoginWindow(task.dueDate, firstLoginAtRef.current);
+  }
+
+  const firstLoginAtRef = useRef<string | null>(null);
 
   const syncUniversityTasks = useCallback(
     async (sessionToken: string, sesskey: string, reloginFn?: ReloginFn) => {
@@ -224,6 +255,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       };
 
       try {
+        firstLoginAtRef.current = await AsyncStorage.getItem(FIRST_LOGIN_KEY);
         let result = await doFetch(sessionToken, sesskey);
 
         // Session expired: try silent re-login once
@@ -241,8 +273,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        const firstLoginAt = firstLoginAtRef.current;
+        const syncableTasks = (result.tasks as any[]).filter(task =>
+          isAfterFirstLoginWindow(task.dueDate, firstLoginAt),
+        );
+
         setTasks(prev => {
-          const updated = applyMoodleTasks(result.tasks, prev);
+          const updated = applyMoodleTasks(syncableTasks, prev);
           persist(updated);
           return updated;
         });
@@ -266,6 +303,17 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       {children}
     </TasksContext.Provider>
   );
+}
+
+function isAfterFirstLoginWindow(
+  dueDate: string | null | undefined,
+  firstLoginAt: string | null,
+): boolean {
+  if (!dueDate || !firstLoginAt) return true;
+  const due = parseTaskDueDate(dueDate);
+  const first = new Date(firstLoginAt);
+  if (!due || Number.isNaN(first.getTime())) return true;
+  return due.getTime() >= first.getTime() - 2 * 86400000;
 }
 
 export function useTasks() {

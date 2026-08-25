@@ -13,7 +13,8 @@ import {
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
-import { type Task, type Priority, useTasks } from '@/context/TasksContext';
+import { isOverdue, type Task, type Priority, useTasks } from '@/context/TasksContext';
+import { parseDueDate } from '@/utils/date';
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   high: '#FF7B7B',
@@ -32,7 +33,7 @@ const DELIVERY_CONFIG = {
 };
 
 function formatFullDate(iso: string, time?: string): string {
-  const d = new Date(iso);
+  const d = parseDueDate(iso) ?? new Date(iso);
   const dateStr = d.toLocaleDateString('es-ES', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -40,7 +41,8 @@ function formatFullDate(iso: string, time?: string): string {
 }
 
 function getDaysLeft(iso: string): { text: string; color: string } {
-  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  const d = parseDueDate(iso);
+  const diff = d ? Math.ceil((d.getTime() - Date.now()) / 86400000) : 0;
   if (diff < 0) return { text: `Vencida hace ${Math.abs(diff)} días`, color: '#FF7B7B' };
   if (diff === 0) return { text: 'Vence hoy', color: '#FF7B7B' };
   if (diff === 1) return { text: 'Vence mañana', color: '#FFB347' };
@@ -110,6 +112,11 @@ export function TaskDetail({ task, onClose }: Props) {
               <View style={[styles.statusChip, { backgroundColor: '#22C55E18' }]}>
                 <Feather name="check-circle" size={13} color="#22C55E" />
                 <Text style={[styles.statusText, { color: '#22C55E', fontFamily: 'Inter_600SemiBold' }]}>Completada</Text>
+              </View>
+            ) : isOverdue(task) ? (
+              <View style={[styles.statusChip, { backgroundColor: '#FF7B7B18' }]}>
+                <Feather name="alert-circle" size={13} color="#FF7B7B" />
+                <Text style={[styles.statusText, { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' }]}>Vencida</Text>
               </View>
             ) : (
               <View style={[styles.statusChip, { backgroundColor: colors.primary + '18' }]}>

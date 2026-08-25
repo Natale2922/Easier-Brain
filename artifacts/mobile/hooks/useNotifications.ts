@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import type { Task } from '@/context/TasksContext';
+import { parseTaskDueDate } from '@/utils/date';
 
 // Dynamically import expo-notifications to avoid crashes if not available
 let Notifications: any = null;
@@ -39,7 +40,8 @@ export function useNotifications() {
         if (newStatus !== 'granted') return false;
       }
 
-      const dueDate = new Date(task.dueDate);
+      const dueDate = parseTaskDueDate(task.dueDate, task.dueTime);
+      if (!dueDate) return false;
       if (task.dueTime) {
         const [h, m] = task.dueTime.split(':').map(Number);
         dueDate.setHours(h, m, 0, 0);

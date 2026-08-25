@@ -9,3 +9,15 @@ export function parseDueDate(value?: string): Date | null {
 
   return date;
 }
+
+export function parseTaskDueDate(value?: string, time?: string): Date | null {
+  const date = parseDueDate(value);
+  if (!date) return null;
+  if (time) {
+    const [hour, minute] = time.split(':').map(Number);
+    if (Number.isFinite(hour) && Number.isFinite(minute)) {
+      date.setHours(hour, minute, 0, 0);
+    }
+  }
+  return date;
+}
