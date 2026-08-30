@@ -7,18 +7,16 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, isOverdue, daysOverdue, type Task } from '@/context/TasksContext';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { TaskDetail } from '@/components/tasks/TaskDetail';
+import { AppHeader } from '@/components/common/AppHeader';
 
 export default function ArchiveScreen() {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const { tasks } = useTasks();
-  const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const completedTasks = useMemo(
@@ -45,47 +43,35 @@ export default function ArchiveScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { paddingTop: topInset + 20, backgroundColor: colors.background },
-        ]}
-      >
-        <Text
-          style={[
-            styles.headerTitle,
-            { color: colors.foreground, fontFamily: 'Inter_700Bold' },
-          ]}
-        >
-          Archivo
-        </Text>
-        <View style={styles.headerStats}>
-          <View style={[styles.statPill, { backgroundColor: '#22C55E18' }]}>
-            <Feather name="check-circle" size={11} color="#22C55E" />
+      <AppHeader
+        title="Archivo"
+        subtitle="Tu historial de tareas y entregas"
+      />
+      <View style={styles.headerStats}>
+        <View style={[styles.statPill, { backgroundColor: colors.success + '18' }]}>
+          <Feather name="check-circle" size={11} color={colors.success} />
+          <Text
+            style={[
+              styles.statText,
+              { color: colors.success, fontFamily: 'Inter_600SemiBold' },
+            ]}
+          >
+            {completedTasks.length} completadas
+          </Text>
+        </View>
+        {overdueTasks.length > 0 && (
+          <View style={[styles.statPill, { backgroundColor: colors.destructive + '18' }]}>
+            <Feather name="alert-circle" size={11} color={colors.destructive} />
             <Text
               style={[
                 styles.statText,
-                { color: '#22C55E', fontFamily: 'Inter_600SemiBold' },
+                { color: colors.destructive, fontFamily: 'Inter_600SemiBold' },
               ]}
             >
-              {completedTasks.length} completadas
+              {overdueTasks.length} vencidas
             </Text>
           </View>
-          {overdueTasks.length > 0 && (
-            <View style={[styles.statPill, { backgroundColor: '#FF7B7B18' }]}>
-              <Feather name="alert-circle" size={11} color="#FF7B7B" />
-              <Text
-                style={[
-                  styles.statText,
-                  { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' },
-                ]}
-              >
-                {overdueTasks.length} vencidas
-              </Text>
-            </View>
-          )}
-        </View>
+        )}
       </View>
 
       <ScrollView
@@ -199,9 +185,7 @@ export default function ArchiveScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16 },
-  headerTitle: { fontSize: 28, letterSpacing: -0.5 },
-  headerStats: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  headerStats: { paddingHorizontal: 20, flexDirection: 'row', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
   statPill: {
     flexDirection: 'row',
     alignItems: 'center',

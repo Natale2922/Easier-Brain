@@ -15,6 +15,7 @@ import { Stack, router, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { setBaseUrl } from '@workspace/api-client-react';
 import { TasksProvider } from '@/context/TasksContext';
+import { AcademicProvider } from '@/context/AcademicContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -94,9 +95,11 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AuthProvider>
-                <TasksProvider>
-                  <RootLayoutNav />
-                </TasksProvider>
+                <AcademicProvider>
+                  <TasksProvider>
+                    <RootLayoutNav />
+                  </TasksProvider>
+                </AcademicProvider>
               </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

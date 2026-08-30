@@ -11,7 +11,6 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -20,6 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColors } from '@/hooks/useColors';
 import { KeyboardAwareScrollViewCompat } from '@/components/common/KeyboardAwareScrollViewCompat';
 import { digitizeScheduleImage, type DetectedBlock } from '@/utils/digitizeSchedule';
+import { useAcademic } from '@/context/AcademicContext';
+import { AppHeader, HeaderAction } from '@/components/common/AppHeader';
 
 const STORAGE_KEY = '@horario_v1';
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -66,8 +67,7 @@ const EMPTY_FORM: BlockFormState = {
 
 export default function HorarioScreen() {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === 'web' ? 67 : insets.top;
+  const { saveSchedule, updateSubjectDetails } = useAcademic();
 
   const [blocks, setBlocks] = useState<ClassBlock[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -83,13 +83,20 @@ export default function HorarioScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then(raw => { if (raw) setBlocks(JSON.parse(raw)); })
+      .then(raw => {
+        if (raw) {
+          const saved = JSON.parse(raw) as ClassBlock[];
+          setBlocks(saved);
+          saveSchedule(saved);
+        }
+      })
       .catch(() => {});
-  }, []);
+  }, [saveSchedule]);
 
   const persist = useCallback((b: ClassBlock[]) => {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(b)).catch(() => {});
-  }, []);
+    saveSchedule(b);
+  }, [saveSchedule]);
 
   // ── Digitization flow ─────────────────────────────────────────────────────
   const handleDigitize = async () => {
@@ -158,6 +165,10 @@ export default function HorarioScreen() {
       persist(updated);
       return updated;
     });
+    updateSubjectDetails(form.subject.trim(), {
+      teacher: form.teacher.trim() || undefined,
+      room: form.room.trim() || undefined,
+    });
     setConfirmVisible(false);
     setDetectedBlocks([]);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -212,33 +223,16 @@ export default function HorarioScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.topHeader, { paddingTop: topInset + 16, backgroundColor: colors.background }]}>
-        <View>
-          <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Horario</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            {blocks.length === 0 ? 'Sin clases' : `${blocks.length} clase${blocks.length !== 1 ? 's' : ''}`}
-          </Text>
-        </View>
-        <View style={styles.headerBtns}>
-          {/* Digitize from photo */}
-          <Pressable
-            style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 14, opacity: pressed ? 0.7 : 1 }]}
-            onPress={handleDigitize}
-            disabled={isDigitizing}
-          >
-            {isDigitizing
-              ? <ActivityIndicator size="small" color={colors.primary} />
-              : <Feather name="camera" size={16} color={colors.primary} />}
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.primary, borderColor: colors.primary, borderRadius: 14, opacity: pressed ? 0.85 : 1 }]}
-            onPress={openAdd}
-          >
-            <Feather name="plus" size={18} color="#FFF" />
-          </Pressable>
-        </View>
-      </View>
+      <AppHeader
+        title="Horario"
+        subtitle={blocks.length === 0 ? 'Sin clases' : `${blocks.length} clase${blocks.length !== 1 ? 's' : ''} guardadas`}
+        actions={
+          <>
+            <HeaderAction icon={isDigitizing ? 'loader' : 'camera'} onPress={handleDigitize} />
+            <HeaderAction icon="plus" active onPress={openAdd} />
+          </>
+        }
+      />
 
       {/* Digitize CTA when empty */}
       {blocks.length === 0 && !isDigitizing && (

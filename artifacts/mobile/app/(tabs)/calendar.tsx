@@ -8,12 +8,12 @@ import {
   Platform,
   FlatList,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, type Task } from '@/context/TasksContext';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { TaskDetail } from '@/components/tasks/TaskDetail';
+import { AppHeader, HeaderAction } from '@/components/common/AppHeader';
 
 const DAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS_ES = [
@@ -35,9 +35,7 @@ function isoToDateStr(iso: string) {
 
 export default function CalendarScreen() {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const { tasks } = useTasks();
-  const topInset = Platform.OS === 'web' ? 67 : insets.top;
 
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -144,24 +142,22 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + 20 }]}>
-        <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-          Calendario
+      <AppHeader
+        title="Calendario"
+        subtitle={`${selectedTasks.length} tarea${selectedTasks.length !== 1 ? 's' : ''} en el día seleccionado`}
+        actions={<HeaderAction icon="search" />}
+      />
+      {/* Month navigator */}
+      <View style={[styles.monthNav, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 16 }]}>
+        <Pressable onPress={prevMonth} style={styles.navBtn} hitSlop={10}>
+          <Feather name="chevron-left" size={20} color={colors.primary} />
+        </Pressable>
+        <Text style={[styles.monthLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+          {MONTHS_ES[viewMonth]} {viewYear}
         </Text>
-
-        {/* Month navigator */}
-        <View style={[styles.monthNav, { backgroundColor: colors.card, borderRadius: 16 }]}>
-          <Pressable onPress={prevMonth} style={styles.navBtn} hitSlop={10}>
-            <Feather name="chevron-left" size={20} color={colors.primary} />
-          </Pressable>
-          <Text style={[styles.monthLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-            {MONTHS_ES[viewMonth]} {viewYear}
-          </Text>
-          <Pressable onPress={nextMonth} style={styles.navBtn} hitSlop={10}>
-            <Feather name="chevron-right" size={20} color={colors.primary} />
-          </Pressable>
-        </View>
+        <Pressable onPress={nextMonth} style={styles.navBtn} hitSlop={10}>
+          <Feather name="chevron-right" size={20} color={colors.primary} />
+        </Pressable>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -242,18 +238,15 @@ export default function CalendarScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 14,
-  },
-  title: { fontSize: 28, letterSpacing: -0.5 },
   monthNav: {
+    marginHorizontal: 20,
+    marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 10,
     paddingHorizontal: 16,
+    borderWidth: 1,
   },
   navBtn: { padding: 4 },
   monthLabel: { fontSize: 16 },

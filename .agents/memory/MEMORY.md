@@ -1,3 +1,4 @@
 - [University Moodle sync](university-sync.md) — UTXicotepec campus uses Moodle with web services disabled; auth via form-POST + AJAX sesskey, not REST token.
 - [Session expiry auto-relogin](session-relogin.md) — Moodle sessions expire; app stores credentials in @university_creds_v1 and calls reloginSilently() before retrying sync.
 - [API caching fix](api-caching.md) — university/tasks route must always have Cache-Control: no-store + Pragma: no-cache + removeHeader(ETag) to avoid 304 empty responses.
+- [Academic data and change notifications](academic-sync.md) — stable campus data is local; Moodle changes are detected during sync because this campus has no push channel.

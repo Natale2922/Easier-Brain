@@ -16,6 +16,9 @@ const colors = {
     accentForeground: '#3975DA',
     destructive: '#C85B69',
     destructiveForeground: '#FFFFFF',
+    success: '#309A7D',
+    warning: '#D79628',
+    info: '#3975DA',
     border: '#E9E4F5',
     input: '#F0EAFF',
     // Pastel palette for subjects
@@ -45,6 +48,9 @@ const colors = {
     accentForeground: '#90BCFF',
     destructive: '#FF7B7B',
     destructiveForeground: '#12101E',
+    success: '#71D2AE',
+    warning: '#F2C36C',
+    info: '#90BCFF',
     border: '#2A2440',
     input: '#2A2440',
     pastel: [

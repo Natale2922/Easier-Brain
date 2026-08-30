@@ -91,7 +91,7 @@ export default function TasksScreen() {
     logout,
     reloginSilently,
   } = useAuth();
-  const { scheduleBulkReminders } = useNotifications();
+  const { scheduleBulkReminders, notifyCampusChanges } = useNotifications();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [aiDialogVisible, setAiDialogVisible] = useState(false);
@@ -140,7 +140,8 @@ export default function TasksScreen() {
     scheduleBulkReminders(
       tasks.filter(task => !task.completed && task.dueDate && !isOverdue(task)),
     );
-  }, [tasks, scheduleBulkReminders]);
+    notifyCampusChanges(tasks);
+  }, [tasks, scheduleBulkReminders, notifyCampusChanges]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -211,10 +212,7 @@ export default function TasksScreen() {
             >
               <Feather name="menu" size={20} color={colors.foreground} />
             </Pressable>
-            <View style={styles.brandInline}>
-              <BrandMark size={36} />
-              <Text style={[styles.brandName, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Nuvo</Text>
-            </View>
+            <BrandMark size={46} />
             <View style={styles.headerRight}>
               <Pressable
                 onPress={() => Haptics.selectionAsync()}
@@ -377,7 +375,6 @@ export default function TasksScreen() {
               <View style={[styles.drawerBrand, { borderBottomColor: colors.border }]}>
                 <BrandMark size={42} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.drawerBrandName, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Nuvo</Text>
                   <Text style={[styles.drawerBrandSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Tu espacio de organización</Text>
                 </View>
                 <Pressable onPress={closeDrawer} hitSlop={10}>
@@ -496,8 +493,6 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 18, gap: 0 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 54, marginBottom: 22 },
   headerIcon: { width: 40, height: 40, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  brandInline: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brandName: { fontSize: 18, letterSpacing: -0.3 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   notificationDot: { position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#FFF' },
   avatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
@@ -542,7 +537,6 @@ const styles = StyleSheet.create({
   drawer: { width: 312, maxWidth: '84%', height: '100%', borderRightWidth: 1, shadowColor: '#241A4A', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.16, shadowRadius: 18, elevation: 16 },
   drawerInner: { flex: 1, paddingTop: Platform.OS === 'web' ? 67 : 0 },
   drawerBrand: { minHeight: 94, paddingHorizontal: 18, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: 1 },
-  drawerBrandName: { fontSize: 20 },
   drawerBrandSub: { fontSize: 10, marginTop: 2 },
   drawerScroll: { padding: 16, gap: 4 },
   drawerLabel: { fontSize: 10, letterSpacing: 1, marginTop: 10, marginBottom: 7, paddingHorizontal: 10 },

@@ -10,6 +10,7 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getUniversityTasks } from '@workspace/api-client-react';
 import { FIRST_LOGIN_KEY } from './AuthContext';
+import { useAcademic } from './AcademicContext';
 
 export type Priority = 'low' | 'medium' | 'high';
 export type TaskSource = 'manual' | 'university';
@@ -110,6 +111,7 @@ function normalizeMoodleDate(value?: string | null): string | undefined {
 }
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
+  const { syncSubjectsFromTasks } = useAcademic();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -136,6 +138,10 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {})
       .finally(() => setIsLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (tasks.length) syncSubjectsFromTasks(tasks);
+  }, [tasks, syncSubjectsFromTasks]);
 
   const persist = useCallback((newTasks: Task[]) => {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks)).catch(() => {});

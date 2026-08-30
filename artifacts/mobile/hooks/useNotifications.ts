@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Task } from '@/context/TasksContext';
 import { parseTaskDueDate } from '@/utils/date';
 
@@ -10,6 +11,8 @@ try {
 } catch {
   Notifications = null;
 }
+
+const CAMPUS_SNAPSHOT_KEY = '@nuvo_campus_task_snapshot_v1';
 
 export function useNotifications() {
   useEffect(() => {
@@ -117,5 +120,47 @@ export function useNotifications() {
     } catch {}
   }, [scheduleReminder]);
 
-  return { scheduleReminder, cancelAllReminders, scheduleBulkReminders };
+  const notifyCampusChanges = useCallback(async (tasks: Task[]) => {
+    if (!Notifications || Platform.OS === 'web') return;
+    try {
+      const current = Object.fromEntries(
+        tasks
+          .filter(task => task.source === 'university')
+          .map(task => [
+            task.externalId ?? task.id,
+            {
+              title: task.title,
+              courseName: task.courseName ?? '',
+              dueDate: task.dueDate ?? '',
+              dueTime: task.dueTime ?? '',
+            },
+          ]),
+      );
+      const previousRaw = await AsyncStorage.getItem(CAMPUS_SNAPSHOT_KEY);
+      await AsyncStorage.setItem(CAMPUS_SNAPSHOT_KEY, JSON.stringify(current));
+      if (!previousRaw) return;
+
+      const previous = JSON.parse(previousRaw) as Record<string, typeof current[string]>;
+      const changes = Object.entries(current).filter(([id, value]) => {
+        const old = previous[id];
+        return !old || JSON.stringify(old) !== JSON.stringify(value);
+      });
+
+      for (const [id, value] of changes.slice(0, 8)) {
+        const isNew = !previous[id];
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: isNew ? '✨ Nueva tarea en el campus' : '🔔 Tarea actualizada',
+            body: `"${value.title}"${value.courseName ? ` — ${value.courseName}` : ''}`,
+            data: { taskId: id, source: 'university' },
+          },
+          trigger: null,
+        });
+      }
+    } catch {
+      // A notification failure must never block task synchronization.
+    }
+  }, []);
+
+  return { scheduleReminder, cancelAllReminders, scheduleBulkReminders, notifyCampusChanges };
 }

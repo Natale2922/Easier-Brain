@@ -1,39 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useColors } from '@/hooks/useColors';
+import { Image, StyleSheet, View } from 'react-native';
+
+const LOGO = require('../assets/images/nuvo-logo.png');
 
 export function BrandMark({ size = 52 }: { size?: number }) {
-  const colors = useColors();
   return (
-    <View
-      style={[
-        styles.mark,
-        {
-          width: size,
-          height: size,
-          borderRadius: Math.round(size * 0.28),
-          backgroundColor: colors.primary,
-        },
-      ]}
-    >
-      <Text
-        style={[
-          styles.letter,
-          {
-            color: colors.primaryForeground,
-            fontSize: size * 0.58,
-            lineHeight: size * 0.65,
-            fontFamily: 'Inter_700Bold',
-          },
-        ]}
-      >
-        N
-      </Text>
+    <View style={[styles.frame, { width: size, height: size, borderRadius: Math.round(size * 0.22) }]}>
+      <Image source={LOGO} resizeMode="cover" style={styles.mark} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mark: { alignItems: 'center', justifyContent: 'center' },
-  letter: { includeFontPadding: false, letterSpacing: -1 },
+  frame: { overflow: 'hidden', backgroundColor: '#FFFFFF' },
+  mark: { width: '100%', height: '100%' },
 });
