@@ -14,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
+import { BrandMark } from '@/components/BrandMark';
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -65,14 +66,7 @@ export default function LoginScreen() {
       >
         {/* Brand header */}
         <View style={styles.brandArea}>
-          <View
-            style={[
-              styles.iconBadge,
-              { backgroundColor: colors.primary, borderRadius: colors.radius + 4 },
-            ]}
-          >
-            <Feather name="check-square" size={32} color="#FFFFFF" />
-          </View>
+          <BrandMark size={64} />
           <Text
             style={[
               styles.appTitle,

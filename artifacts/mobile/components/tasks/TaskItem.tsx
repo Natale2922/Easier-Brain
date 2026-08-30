@@ -1,6 +1,6 @@
 import { parseDueDate } from "../../utils/date";
 import React, { useRef } from "react";
-import { View, Text, Pressable, StyleSheet, Animated } from "react-native";
+import { View, Text, Pressable, StyleSheet, Animated, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
@@ -77,13 +77,13 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
       Animated.sequence([
         Animated.spring(checkScale, {
           toValue: 1.4,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
           tension: 200,
           friction: 5,
         }),
         Animated.spring(checkScale, {
           toValue: 1,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
           tension: 150,
           friction: 6,
         }),
@@ -92,7 +92,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
       Animated.timing(checkScale, {
         toValue: 0,
         duration: 130,
-        useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
       }).start();
     }
     toggleTask(task.id);
@@ -103,7 +103,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
     Animated.timing(rowOpacity, {
       toValue: 0,
       duration: 200,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start(() => deleteTask(task.id));
   };
 

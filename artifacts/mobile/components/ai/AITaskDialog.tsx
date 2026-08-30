@@ -73,12 +73,12 @@ export function AITaskDialog({ visible, onClose }: Props) {
         Animated.timing(shimmer, {
           toValue: 1,
           duration: 700,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(shimmer, {
           toValue: 0,
           duration: 700,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]),
     ).start();

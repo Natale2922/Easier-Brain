@@ -69,8 +69,8 @@ export function TaskDetail({ task, onClose }: Props) {
   const handleToggle = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Animated.sequence([
-      Animated.spring(checkScale, { toValue: 1.3, useNativeDriver: true, tension: 200, friction: 5 }),
-      Animated.spring(checkScale, { toValue: 1, useNativeDriver: true, tension: 150, friction: 6 }),
+      Animated.spring(checkScale, { toValue: 1.3, useNativeDriver: Platform.OS !== 'web', tension: 200, friction: 5 }),
+      Animated.spring(checkScale, { toValue: 1, useNativeDriver: Platform.OS !== 'web', tension: 150, friction: 6 }),
     ]).start();
     toggleTask(task.id);
     onClose();
