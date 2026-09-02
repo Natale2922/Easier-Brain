@@ -48,6 +48,69 @@ export interface UniversityError {
   error: string;
 }
 
+export interface AcademicStudent {
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  career?: string | null;
+  /** @nullable */
+  group?: string | null;
+  /** @nullable */
+  generation?: string | null;
+  /** @nullable */
+  overallAverage?: number | null;
+}
+
+export interface AcademicUnitGrade {
+  number: number;
+  /** @nullable */
+  grade?: number | null;
+  /** @nullable */
+  gradeRaw?: string | null;
+  /** @nullable */
+  modality?: string | null;
+  /** @nullable */
+  weight?: number | null;
+}
+
+export interface AcademicSubject {
+  id: string;
+  name: string;
+  /** @nullable */
+  code?: string | null;
+  /** @nullable */
+  teacher?: string | null;
+  /** @nullable */
+  finalGrade?: number | null;
+  /** @nullable */
+  finalGradeRaw?: string | null;
+  units: AcademicUnitGrade[];
+}
+
+export interface AcademicPeriod {
+  id: string;
+  label: string;
+  /** @nullable */
+  year?: string | null;
+  /** @nullable */
+  average?: number | null;
+  subjects: AcademicSubject[];
+}
+
+export interface AcademicSnapshot {
+  student: AcademicStudent;
+  periods: AcademicPeriod[];
+  lastUpdatedAt: string;
+  source?: string;
+}
+
+export interface UniversityGradesResult {
+  success: boolean;
+  /** @nullable */
+  error?: string | null;
+  data?: AcademicSnapshot | null;
+}
+
 export type GetUniversityTasksParams = {
 sessionToken: string;
 sesskey: string;

@@ -76,6 +76,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/UniversityError"
 
+  /university/grades:
+    post:
+      operationId: getUniversityGrades
+      tags: [university]
+      summary: Read academic grades from the UTXJ SII
+      description: Logs into the institutional SII with the same university credentials and returns normalized academic data.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UniversityCredentials"
+      responses:
+        "200":
+          description: Academic data from SII
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UniversityGradesResult"
+
 components:
   schemas:
     HealthStatus:
@@ -144,3 +164,98 @@ components:
       properties:
         error:
           type: string
+
+    UniversityGradesResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        error:
+          type: ["string", "null"]
+        data:
+          anyOf:
+            - $ref: "#/components/schemas/AcademicSnapshot"
+            - type: "null"
+
+    AcademicSnapshot:
+      type: object
+      required: [student, periods, lastUpdatedAt]
+      properties:
+        student:
+          $ref: "#/components/schemas/AcademicStudent"
+        periods:
+          type: array
+          items:
+            $ref: "#/components/schemas/AcademicPeriod"
+        lastUpdatedAt:
+          type: string
+        source:
+          type: string
+
+    AcademicStudent:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        career:
+          type: ["string", "null"]
+        group:
+          type: ["string", "null"]
+        generation:
+          type: ["string", "null"]
+        overallAverage:
+          type: ["number", "null"]
+
+    AcademicPeriod:
+      type: object
+      required: [id, label, subjects]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        year:
+          type: ["string", "null"]
+        average:
+          type: ["number", "null"]
+        subjects:
+          type: array
+          items:
+            $ref: "#/components/schemas/AcademicSubject"
+
+    AcademicSubject:
+      type: object
+      required: [id, name, units]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        code:
+          type: ["string", "null"]
+        teacher:
+          type: ["string", "null"]
+        finalGrade:
+          type: ["number", "null"]
+        finalGradeRaw:
+          type: ["string", "null"]
+        units:
+          type: array
+          items:
+            $ref: "#/components/schemas/AcademicUnitGrade"
+
+    AcademicUnitGrade:
+      type: object
+      required: [number]
+      properties:
+        number:
+          type: integer
+        grade:
+          type: ["number", "null"]
+        gradeRaw:
+          type: ["string", "null"]
+        modality:
+          type: ["string", "null"]
+        weight:
+          type: ["number", "null"]

@@ -24,12 +24,13 @@ import { AITaskDialog } from '@/components/ai/AITaskDialog';
 import { BrandMark } from '@/components/BrandMark';
 import { useNotifications } from '@/hooks/useNotifications';
 
-type DrawerRoute = '/(tabs)' | '/calendar' | '/materias' | '/done' | '/horario';
+type DrawerRoute = '/(tabs)' | '/calendar' | '/materias' | '/done' | '/horario' | '/calificaciones';
 
 const drawerItems: { label: string; icon: keyof typeof Feather.glyphMap; route?: DrawerRoute }[] = [
   { label: 'Inicio', icon: 'home', route: '/(tabs)' },
   { label: 'Calendario', icon: 'calendar', route: '/calendar' },
   { label: 'Materias', icon: 'book-open', route: '/materias' },
+  { label: 'Calificaciones', icon: 'award', route: '/calificaciones' },
   { label: 'Tareas', icon: 'check-square', route: '/(tabs)' },
   { label: 'Archivo', icon: 'archive', route: '/done' },
   { label: 'Horario', icon: 'clock', route: '/horario' },

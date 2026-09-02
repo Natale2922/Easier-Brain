@@ -5,6 +5,8 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+// Academic and Moodle responses are session-scoped and must never be revalidated from cache.
+app.set("etag", false);
 
 app.use(
   pinoHttp({

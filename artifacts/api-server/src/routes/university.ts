@@ -2,8 +2,10 @@ import { Router, type IRouter } from "express";
 import {
   UniversityLoginBody,
   GetUniversityTasksQueryParams,
+  GetUniversityGradesBody,
 } from "@workspace/api-zod";
 import { moodleLogin, getMoodleTasks } from "../lib/moodle";
+import { getSiiAcademicData } from "../lib/sii";
 
 const router: IRouter = Router();
 
@@ -75,6 +77,31 @@ router.get("/university/tasks", async (req, res): Promise<void> => {
     }
     req.log.error({ err }, "Error fetching tasks");
     res.json({ tasks: [], sessionExpired: false });
+  }
+});
+
+router.post("/university/grades", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.removeHeader("ETag");
+  const parsed = GetUniversityGradesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, error: "Datos de acceso inválidos", data: null });
+    return;
+  }
+
+  try {
+    const data = await getSiiAcademicData(parsed.data.username, parsed.data.password);
+    res.json({ success: true, error: null, data });
+  } catch (err) {
+    req.log.warn({ error: err instanceof Error ? err.message : "unknown" }, "SII grades sync failed");
+    res.json({
+      success: false,
+      error: err instanceof Error && err.message === "SII_LOGIN_FAILED"
+        ? "No se pudo iniciar sesión en el SII con tu cuenta universitaria."
+        : "El SII no está disponible en este momento.",
+      data: null,
+    });
   }
 });
 

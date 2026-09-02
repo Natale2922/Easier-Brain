@@ -6,10 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './academicPeriod';
+export * from './academicSnapshot';
+export * from './academicStudent';
+export * from './academicSubject';
+export * from './academicUnitGrade';
 export * from './getUniversityTasksParams';
 export * from './healthStatus';
 export * from './universityCredentials';
 export * from './universityError';
+export * from './universityGradesResult';
 export * from './universityLoginResult';
 export * from './universityTask';
 export * from './universityTaskList';

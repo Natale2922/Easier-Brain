@@ -58,3 +58,54 @@ export const GetUniversityTasksResponse = zod.object({
 })
 
 
+/**
+ * Logs into the institutional SII with the same university credentials and returns normalized academic data.
+ * @summary Read academic grades from the UTXJ SII
+ */
+
+
+
+
+export const GetUniversityGradesBody = zod.object({
+  "username": zod.string().min(1),
+  "password": zod.string().min(1)
+})
+
+export const GetUniversityGradesResponse = zod.object({
+  "success": zod.boolean(),
+  "error": zod.string().nullish(),
+  "data": zod.union([zod.object({
+  "student": zod.object({
+  "name": zod.string().nullish(),
+  "career": zod.string().nullish(),
+  "group": zod.string().nullish(),
+  "generation": zod.string().nullish(),
+  "overallAverage": zod.number().nullish()
+}),
+  "periods": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "year": zod.string().nullish(),
+  "average": zod.number().nullish(),
+  "subjects": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "code": zod.string().nullish(),
+  "teacher": zod.string().nullish(),
+  "finalGrade": zod.number().nullish(),
+  "finalGradeRaw": zod.string().nullish(),
+  "units": zod.array(zod.object({
+  "number": zod.number(),
+  "grade": zod.number().nullish(),
+  "gradeRaw": zod.string().nullish(),
+  "modality": zod.string().nullish(),
+  "weight": zod.number().nullish()
+}))
+}))
+})),
+  "lastUpdatedAt": zod.string(),
+  "source": zod.string().optional()
+}),zod.null()]).optional()
+})
+
+

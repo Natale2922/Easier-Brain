@@ -57,6 +57,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="calificaciones"
+        options={{
+          title: 'Calificaciones',
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="graduationcap.fill" tintColor={color} size={22} />
+            ) : (
+              <Feather name="award" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
         name="done"
         options={{
           title: 'Archivo',

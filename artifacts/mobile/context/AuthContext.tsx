@@ -25,6 +25,7 @@ interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   reloginSilently: () => Promise<{ sessionToken: string; sesskey: string } | null>;
+  getStoredCredentials: () => Promise<{ username: string; password: string } | null>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -118,6 +119,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const getStoredCredentials = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(CREDS_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed.username && parsed.password
+        ? { username: parsed.username, password: parsed.password }
+        : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const logout = useCallback(() => {
     AsyncStorage.multiRemove([AUTH_KEY, CREDS_KEY]).catch(() => {});
     setState({
@@ -131,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, reloginSilently }}>
+    <AuthContext.Provider value={{ ...state, login, logout, reloginSilently, getStoredCredentials }}>
       {children}
     </AuthContext.Provider>
   );

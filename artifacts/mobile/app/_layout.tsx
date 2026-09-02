@@ -17,6 +17,7 @@ import { setBaseUrl } from '@workspace/api-client-react';
 import { TasksProvider } from '@/context/TasksContext';
 import { AcademicProvider } from '@/context/AcademicContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { GradesProvider } from '@/context/GradesContext';
 import { useColors } from '@/hooks/useColors';
 
 // Set up API base URL for Expo (outside web proxy)
@@ -96,9 +97,11 @@ export default function RootLayout() {
             <KeyboardProvider>
               <AuthProvider>
                 <AcademicProvider>
-                  <TasksProvider>
-                    <RootLayoutNav />
-                  </TasksProvider>
+                  <GradesProvider>
+                    <TasksProvider>
+                      <RootLayoutNav />
+                    </TasksProvider>
+                  </GradesProvider>
                 </AcademicProvider>
               </AuthProvider>
             </KeyboardProvider>
