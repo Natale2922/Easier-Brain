@@ -22,6 +22,7 @@ import type {
 import type {
   GetUniversityTasksParams,
   HealthStatus,
+  SiiCredentials,
   UniversityCredentials,
   UniversityError,
   UniversityGradesResult,
@@ -298,17 +299,17 @@ export const getGetUniversityGradesUrl = () => {
 }
 
 /**
- * Logs into the institutional SII with the same university credentials and returns normalized academic data.
+ * Logs into the institutional SII with SII credentials and returns normalized academic data.
  * @summary Read academic grades from the UTXJ SII
  */
-export const getUniversityGrades = async (universityCredentials: UniversityCredentials, options?: RequestInit): Promise<UniversityGradesResult> => {
+export const getUniversityGrades = async (siiCredentials: SiiCredentials, options?: RequestInit): Promise<UniversityGradesResult> => {
 
   return customFetch<UniversityGradesResult>(getGetUniversityGradesUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(universityCredentials)
+    body: JSON.stringify(siiCredentials)
   }
 );}
 
@@ -317,8 +318,8 @@ export const getUniversityGrades = async (universityCredentials: UniversityCrede
 
 
 export const getGetUniversityGradesMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getUniversityGrades>>, TError,{data: BodyType<UniversityCredentials>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof getUniversityGrades>>, TError,{data: BodyType<UniversityCredentials>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getUniversityGrades>>, TError,{data: BodyType<SiiCredentials>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof getUniversityGrades>>, TError,{data: BodyType<SiiCredentials>}, TContext> => {
 
 const mutationKey = ['getUniversityGrades'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -330,7 +331,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getUniversityGrades>>, {data: BodyType<UniversityCredentials>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getUniversityGrades>>, {data: BodyType<SiiCredentials>}> = (props) => {
           const {data} = props ?? {};
 
           return  getUniversityGrades(data,requestOptions)
@@ -344,18 +345,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type GetUniversityGradesMutationResult = NonNullable<Awaited<ReturnType<typeof getUniversityGrades>>>
-    export type GetUniversityGradesMutationBody = BodyType<UniversityCredentials>
+    export type GetUniversityGradesMutationBody = BodyType<SiiCredentials>
     export type GetUniversityGradesMutationError = ErrorType<unknown>
 
     /**
  * @summary Read academic grades from the UTXJ SII
  */
 export const useGetUniversityGrades = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getUniversityGrades>>, TError,{data: BodyType<UniversityCredentials>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getUniversityGrades>>, TError,{data: BodyType<SiiCredentials>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof getUniversityGrades>>,
         TError,
-        {data: BodyType<UniversityCredentials>},
+        {data: BodyType<SiiCredentials>},
         TContext
       > => {
       return useMutation(getGetUniversityGradesMutationOptions(options));

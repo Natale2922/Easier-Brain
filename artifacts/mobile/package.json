@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "expo-file-system": "^19.0.24",
-    "expo-notifications": "^0.32.17"
+    "expo-notifications": "^0.32.17",
+    "expo-secure-store": "^15.0.8"
   }
 }

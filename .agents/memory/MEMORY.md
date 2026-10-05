@@ -3,3 +3,4 @@
 - [API caching fix](api-caching.md) — university/tasks route must always have Cache-Control: no-store + Pragma: no-cache + removeHeader(ETag) to avoid 304 empty responses.
 - [Academic data and change notifications](academic-sync.md) — stable campus data is local; Moodle changes are detected during sync because this campus has no push channel.
 - [OpenAPI generation](openapi-generation.md) — validate schema nesting before running Orval; malformed YAML can surface as an unhelpful input-resolution error.
+- [SII credential boundary](sii-auth-security.md) — keep SII login separate from Moodle; store native credentials in SecureStore and disclose the portal's HTTP-only connection.

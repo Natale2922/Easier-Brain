@@ -16,6 +16,13 @@ export interface UniversityCredentials {
   password: string;
 }
 
+export interface SiiCredentials {
+  /** @minLength 1 */
+  username: string;
+  /** @minLength 1 */
+  password: string;
+}
+
 export interface UniversityLoginResult {
   success: boolean;
   /** @nullable */

@@ -59,7 +59,7 @@ export const GetUniversityTasksResponse = zod.object({
 
 
 /**
- * Logs into the institutional SII with the same university credentials and returns normalized academic data.
+ * Logs into the institutional SII with SII credentials and returns normalized academic data.
  * @summary Read academic grades from the UTXJ SII
  */
 

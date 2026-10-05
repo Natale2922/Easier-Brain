@@ -46,6 +46,13 @@ interface SiiResponse {
   html: string;
 }
 
+interface SiiMenuAction {
+  form: string;
+  source: string;
+  process: string;
+  update: string;
+}
+
 class SiiClient {
   private cookies = new Map<string, string>();
 
@@ -56,7 +63,8 @@ class SiiClient {
         : [headers.get("set-cookie") ?? ""];
     for (const value of values) {
       const match = value.match(/(?:^|,)\s*([^=;,]+)=([^;,\s]+)/);
-      if (match?.[1] && match[2] !== "deleted") this.cookies.set(match[1], match[2]);
+      if (match?.[1] && match[2] === "deleted") this.cookies.delete(match[1]);
+      else if (match?.[1]) this.cookies.set(match[1], match[2]);
     }
   }
 
@@ -72,6 +80,7 @@ class SiiClient {
       ...init,
       headers,
       redirect: "manual",
+      signal: AbortSignal.timeout(20000),
     });
     this.saveCookies(response.headers);
     return { response, html: await response.text() };
@@ -122,6 +131,50 @@ function linkCandidates($: CheerioAPI, html: string) {
   return Array.from(new Set(links)).filter(Boolean);
 }
 
+function menuActions(html: string): SiiMenuAction[] {
+  const $ = load(html);
+  const actions: SiiMenuAction[] = [];
+  $("a[onclick],button[onclick],input[onclick]").each((_index, element) => {
+    const node = $(element);
+    const text = cleanText(`${node.text()} ${node.attr("title")} ${node.attr("aria-label")} ${node.attr("href")}`);
+    if (!/calific|historial|kardex|boleta|evaluac|escolar|acad[eé]mic/i.test(text)) return;
+    const onclick = (node.attr("onclick") ?? "").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    if (!/PrimeFaces\.ab\s*\(/.test(onclick)) return;
+    const read = (key: string) => onclick.match(new RegExp(`${key}\\s*:\\s*["']([^"']+)["']`))?.[1] ?? "";
+    const source = read("s");
+    const form = read("f");
+    if (!source || !form) return;
+    actions.push({
+      form,
+      source,
+      process: read("p") || source,
+      update: read("u") || "@all",
+    });
+  });
+  return actions;
+}
+
+function ajaxUpdatedFragments(response: string) {
+  return Array.from(
+    response.matchAll(/<update\b[^>]*>(?:\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*|([\s\S]*?))<\/update>/gi),
+    match => match[1] ?? match[2] ?? "",
+  ).filter(fragment => fragment.trim());
+}
+
+function uniquePeriods(periods: SiiPeriod[]) {
+  const byPeriod = new Map<string, SiiPeriod>();
+  for (const period of periods) {
+    const existing = byPeriod.get(period.label);
+    if (!existing) {
+      byPeriod.set(period.label, period);
+      continue;
+    }
+    const subjects = new Map([...existing.subjects, ...period.subjects].map(subject => [subject.name.toLowerCase(), subject]));
+    existing.subjects = Array.from(subjects.values());
+  }
+  return Array.from(byPeriod.values());
+}
+
 function normalizeLink(link: string) {
   if (link.startsWith("http")) return link;
   if (link.startsWith("/")) return `http://201.116.22.214:8080${link}`;
@@ -156,14 +209,16 @@ function parseSubjectTables(html: string): SiiPeriod[] {
         const weight = toWeight(row[index + 1] ?? "");
         return { number, grade: parsed.grade, gradeRaw: parsed.raw, modality: parsed.modality, weight };
       }).filter(unit => unit.grade !== null || unit.gradeRaw);
-      if (!units.length) return;
+      const finalGradeRaw = finalIndex >= 0 ? row[finalIndex] ?? null : null;
+      const finalGrade = finalIndex >= 0 ? toNumber(finalGradeRaw) : null;
+      if (!units.length && finalGrade === null && !finalGradeRaw) return;
       subjects.push({
         id: `${tableIndex}_${rowIndex}_${name.toLowerCase().replace(/\W+/g, "_")}`,
         name,
         code: codeIndex >= 0 ? row[codeIndex] ?? null : null,
         teacher: teacherIndex >= 0 ? row[teacherIndex] ?? null : null,
-        finalGrade: finalIndex >= 0 ? toNumber(row[finalIndex]) : null,
-        finalGradeRaw: finalIndex >= 0 ? row[finalIndex] ?? null : null,
+        finalGrade,
+        finalGradeRaw,
         units,
       });
     });
@@ -185,6 +240,7 @@ export async function getSiiAcademicData(username: string, password: string): Pr
   const client = new SiiClient();
   const loginPage = await client.request("/login.xhtml");
   const viewState = hiddenValue(loginPage.html, "javax.faces.ViewState");
+  const formAction = load(loginPage.html)("#frmLogin").attr("action") || "/login.xhtml";
   const body = new URLSearchParams({
     "javax.faces.partial.ajax": "true",
     "javax.faces.source": "frmLogin:btnLogin",
@@ -196,7 +252,7 @@ export async function getSiiAcademicData(username: string, password: string): Pr
     "frmLogin:btnLogin": "frmLogin:btnLogin",
     "javax.faces.ViewState": viewState,
   });
-  const loginResponse = await client.request("/login.xhtml", {
+  const loginResponse = await client.request(normalizeLink(formAction), {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -209,34 +265,67 @@ export async function getSiiAcademicData(username: string, password: string): Pr
     throw new Error("SII_LOGIN_FAILED");
   }
 
-  const redirectUrl = loginResponse.html.match(/<redirect[^>]+url="([^"]+)"/i)?.[1];
+  const redirectUrl = loginResponse.response.headers.get("location")
+    ?? loginResponse.html.match(/<redirect[^>]+url="([^"]+)"/i)?.[1]?.replace(/&amp;/g, "&");
   const dashboard = await client.request(redirectUrl ? normalizeLink(redirectUrl) : "/index.xhtml");
   if (/login\.xhtml|frmLogin:password/i.test(dashboard.response.url || "") || /frmLogin:password/i.test(dashboard.html)) {
     throw new Error("SII_LOGIN_FAILED");
   }
 
-  const pages = [dashboard.html, ...linkCandidates(load(dashboard.html), dashboard.html).map(normalizeLink)];
-  let gradeHtml = dashboard.html;
-  for (const page of pages.slice(0, 8)) {
-    if (page === dashboard.html) continue;
+  const pages = linkCandidates(load(dashboard.html), dashboard.html).map(normalizeLink);
+  const periodsFound = parseSubjectTables(dashboard.html);
+  const htmlDocuments = [dashboard.html];
+  const currentPage = redirectUrl ? normalizeLink(redirectUrl) : `${BASE}/index.xhtml`;
+  const actions = menuActions(dashboard.html);
+
+  for (const action of actions.slice(0, 12)) {
     try {
-      const candidate = await client.request(page);
-      if (/unidad|calific|promedio|evaluaci/i.test(candidate.html)) {
-        gradeHtml = candidate.html;
-        break;
+      const actionBody = new URLSearchParams({
+        "javax.faces.partial.ajax": "true",
+        "javax.faces.source": action.source,
+        "javax.faces.partial.execute": action.process,
+        "javax.faces.partial.render": action.update,
+        [action.form]: action.form,
+        [action.source]: action.source,
+        "javax.faces.ViewState": hiddenValue(dashboard.html, "javax.faces.ViewState"),
+      });
+      const response = await client.request(currentPage, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Faces-Request": "partial/ajax",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: actionBody.toString(),
+      });
+      const fragments = [response.html, ...ajaxUpdatedFragments(response.html)];
+      for (const fragment of fragments) {
+        htmlDocuments.push(fragment);
+        periodsFound.push(...parseSubjectTables(fragment));
       }
     } catch {
-      // Try the next institutional menu target.
+      // Try other academic links in the authenticated SII menu.
     }
   }
 
-  const $ = load(gradeHtml);
+  for (const page of pages.slice(0, 12)) {
+    try {
+      const candidate = await client.request(page);
+      htmlDocuments.push(candidate.html);
+      periodsFound.push(...parseSubjectTables(candidate.html));
+    } catch {
+      // Some menu links require a PrimeFaces action and are handled above.
+    }
+  }
+
+  const periods = uniquePeriods(periodsFound);
+  const $ = load(htmlDocuments.join("\n"));
   const bodyText = cleanText($("body").text());
   const studentName = cleanText($(".user-name, .username, [class*='nombre']").first().text()) || null;
   const career = bodyText.match(/(?:carrera|programa)\s*[:\-]\s*([^|]{3,80})/i)?.[1] ?? null;
   const group = bodyText.match(/(?:grupo)\s*[:\-]\s*([^|]{1,30})/i)?.[1] ?? null;
   const generation = bodyText.match(/(?:generaci[oó]n)\s*[:\-]\s*([^|]{1,30})/i)?.[1] ?? null;
-  const periods = parseSubjectTables(gradeHtml);
+  if (!periods.length) throw new Error("SII_GRADES_NOT_FOUND");
   const values = periods.flatMap(period => period.subjects)
     .map(subject => subject.finalGrade)
     .filter((value): value is number => value !== null);

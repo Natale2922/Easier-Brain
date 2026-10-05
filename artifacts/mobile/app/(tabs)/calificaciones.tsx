@@ -1,11 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
+  Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -22,10 +25,44 @@ function formatUpdated(value: string | null) {
 
 export default function GradesScreen() {
   const colors = useColors();
-  const { snapshot, summary, isLoading, isSyncing, error, lastUpdatedAt, syncGrades } = useGrades();
+  const {
+    snapshot,
+    summary,
+    isLoading,
+    isSyncing,
+    error,
+    lastUpdatedAt,
+    siiUsername,
+    isSiiAuthenticated,
+    loginSii,
+    logoutSii,
+    syncGrades,
+  } = useGrades();
   const [view, setView] = useState<'grades' | 'history'>('grades');
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (siiUsername) setUsername(siiUsername);
+  }, [siiUsername]);
+
+  const handleSiiLogin = async () => {
+    if (await loginSii(username, password)) {
+      setPassword('');
+      setShowPassword(false);
+    }
+  };
+  const handleSiiLogout = async () => {
+    await logoutSii();
+    setUsername('');
+    setPassword('');
+    setShowPassword(false);
+    setSelectedPeriodId(null);
+    setExpandedId(null);
+  };
 
   const periods = snapshot?.periods ?? [];
   const selectedPeriod = useMemo<AcademicPeriod | null>(() => {
@@ -44,16 +81,38 @@ export default function GradesScreen() {
       <AppHeader
         title="Calificaciones"
         subtitle="Tu historial académico del SII, organizado por cuatrimestre."
-        actions={
-          <HeaderAction
-            icon="refresh-cw"
-            label={isSyncing ? 'Actualizando' : 'Actualizar'}
-            active={isSyncing}
-            onPress={syncGrades}
-          />
-        }
+        actions={isSiiAuthenticated ? (
+          <View style={styles.headerActions}>
+            <HeaderAction
+              icon="refresh-cw"
+              label={isSyncing ? 'Actualizando' : 'Actualizar'}
+              active={isSyncing}
+              onPress={syncGrades}
+            />
+            <HeaderAction icon="log-out" label="Salir" onPress={handleSiiLogout} />
+          </View>
+        ) : undefined}
       />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {isLoading ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Conectando con el SII...</Text>
+          </View>
+        ) : !isSiiAuthenticated ? (
+          <SiiLoginPanel
+            username={username}
+            password={password}
+            showPassword={showPassword}
+            isSyncing={isSyncing}
+            error={error}
+            onUsername={value => setUsername(value)}
+            onPassword={value => setPassword(value)}
+            onTogglePassword={() => setShowPassword(value => !value)}
+            onSubmit={handleSiiLogin}
+          />
+        ) : (
+          <>
         <View style={[styles.sourceRow, { backgroundColor: colors.secondary, borderColor: colors.primary + '22' }]}>
           <View style={[styles.sourceIcon, { backgroundColor: colors.primary }]}>
             <Feather name="shield" size={15} color="#FFF" />
@@ -113,11 +172,7 @@ export default function GradesScreen() {
           </View>
         ) : null}
 
-        {isLoading ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ActivityIndicator color={colors.primary} />
-          </View>
-        ) : !snapshot || !periods.length ? (
+        {!snapshot || !periods.length ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
               <Feather name="book-open" size={24} color={colors.primary} />
@@ -164,8 +219,114 @@ export default function GradesScreen() {
             ) : null}
           </>
         )}
+          </>
+        )}
       </ScrollView>
     </View>
+  );
+}
+
+function SiiLoginPanel({
+  username,
+  password,
+  showPassword,
+  isSyncing,
+  error,
+  onUsername,
+  onPassword,
+  onTogglePassword,
+  onSubmit,
+}: {
+  username: string;
+  password: string;
+  showPassword: boolean;
+  isSyncing: boolean;
+  error: string | null;
+  onUsername: (value: string) => void;
+  onPassword: (value: string) => void;
+  onTogglePassword: () => void;
+  onSubmit: () => void;
+}) {
+  const colors = useColors();
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={[styles.loginCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.loginIcon, { backgroundColor: colors.secondary }]}>
+          <Feather name="award" size={23} color={colors.primary} />
+        </View>
+        <Text style={[styles.loginTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Entra al SII</Text>
+        <Text style={[styles.loginSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+          Usa tu cuenta del Sistema Integral de Información para consultar y sincronizar tus calificaciones.
+        </Text>
+
+        <View style={[styles.loginInput, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <Feather name="user" size={16} color={colors.mutedForeground} />
+          <TextInput
+            value={username}
+            onChangeText={onUsername}
+            placeholder="Usuario del SII"
+            placeholderTextColor={colors.mutedForeground}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="next"
+            editable={!isSyncing}
+            style={[styles.loginInputText, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+            accessibilityLabel="Usuario del SII"
+          />
+        </View>
+        <View style={[styles.loginInput, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <Feather name="lock" size={16} color={colors.mutedForeground} />
+          <TextInput
+            value={password}
+            onChangeText={onPassword}
+            placeholder="Contraseña del SII"
+            placeholderTextColor={colors.mutedForeground}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={onSubmit}
+            editable={!isSyncing}
+            style={[styles.loginInputText, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
+            accessibilityLabel="Contraseña del SII"
+          />
+          <Pressable onPress={onTogglePassword} hitSlop={8} accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color={colors.mutedForeground} />
+          </Pressable>
+        </View>
+
+        {error ? (
+          <View style={[styles.loginError, { backgroundColor: colors.destructive + '12' }]}>
+            <Feather name="alert-circle" size={15} color={colors.destructive} />
+            <Text style={[styles.loginErrorText, { color: colors.destructive, fontFamily: 'Inter_500Medium' }]}>{error}</Text>
+          </View>
+        ) : null}
+
+        <Pressable
+          onPress={onSubmit}
+          disabled={isSyncing || !username.trim() || !password}
+          style={({ pressed }) => [
+            styles.loginButton,
+            { backgroundColor: colors.primary, opacity: isSyncing ? 0.72 : pressed ? 0.85 : (!username.trim() || !password ? 0.55 : 1) },
+          ]}
+        >
+          {isSyncing ? <ActivityIndicator size="small" color="#FFF" /> : <Feather name="log-in" size={17} color="#FFF" />}
+          <Text style={[styles.loginButtonText, { fontFamily: 'Inter_600SemiBold' }]}>{isSyncing ? 'Validando y leyendo calificaciones…' : 'Iniciar sesión y sincronizar'}</Text>
+        </Pressable>
+        <View style={[styles.securityNotice, { backgroundColor: colors.warning + '16' }]}>
+          <Feather name="alert-triangle" size={14} color={colors.warning} />
+          <Text style={[styles.securityNoticeText, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}>
+            El portal oficial del SII sólo está disponible por HTTP sin cifrado. Evita iniciar sesión desde redes públicas.
+          </Text>
+        </View>
+        <View style={styles.privacyHint}>
+          <Feather name="shield" size={14} color={colors.success} />
+          <Text style={[styles.privacyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            El acceso del SII es independiente del Campus Virtual. En el dispositivo se conserva de forma segura para futuras sincronizaciones.
+          </Text>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -201,7 +362,7 @@ function SubjectCard({ subject, colors, expanded, onPress }: { subject: Subject;
           <Text style={[styles.subjectMeta, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{subject.code ?? 'Clave no disponible'} · {subject.teacher ?? 'Docente no disponible'}</Text>
         </View>
         <View style={styles.subjectGrade}>
-          <Text style={[styles.subjectGradeValue, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{formatGrade(subject.finalGrade ?? subject.weightedAverage ?? subject.average)}</Text>
+          <Text style={[styles.subjectGradeValue, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{subject.finalGradeRaw ?? formatGrade(subject.finalGrade ?? subject.weightedAverage ?? subject.average)}</Text>
           <Text style={[styles.subjectGradeLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>final</Text>
         </View>
         <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={17} color={colors.mutedForeground} />
@@ -240,6 +401,21 @@ function SubjectCard({ subject, colors, expanded, onPress }: { subject: Subject;
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 20, paddingBottom: 110, gap: 14 },
+  headerActions: { flexDirection: 'row', gap: 6 },
+  loginCard: { borderRadius: 22, borderWidth: 1, padding: 20, gap: 13 },
+  loginIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  loginTitle: { fontSize: 22, letterSpacing: -0.4 },
+  loginSubtitle: { fontSize: 13, lineHeight: 19, marginTop: -6, marginBottom: 2 },
+  loginInput: { minHeight: 49, borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  loginInputText: { flex: 1, minHeight: 46, fontSize: 14, paddingVertical: 8 },
+  loginError: { borderRadius: 12, padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  loginErrorText: { fontSize: 12, lineHeight: 18, flex: 1 },
+  loginButton: { minHeight: 48, borderRadius: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2 },
+  loginButtonText: { color: '#FFF', fontSize: 12 },
+  privacyHint: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', paddingTop: 2 },
+  privacyText: { flex: 1, fontSize: 10, lineHeight: 15 },
+  securityNotice: { borderRadius: 12, padding: 10, flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  securityNoticeText: { flex: 1, fontSize: 10, lineHeight: 15 },
   sourceRow: { borderWidth: 1, borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   sourceIcon: { width: 32, height: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   sourceTitle: { fontSize: 12 },

@@ -62,8 +62,6 @@ const modalityLabels: Record<GradeModality, string> = {
   UNKNOWN: 'No disponible',
 };
 
-const levelGrades: Record<string, number> = { A: 9, B: 8, C: 7, D: 6, E: 10 };
-
 function clean(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).replace(/\s+/g, ' ').trim();
@@ -88,7 +86,7 @@ export function parseGradeAndModality(value: unknown) {
   const modalityKey = raw?.match(/\b(OR|RE|EX)\b/i)?.[1]?.toUpperCase() as GradeModality | undefined;
   const modality = modalityKey && modalityKey in modalityLabels ? modalityKey : 'UNKNOWN';
   const level = raw?.match(/\b([A-E])\b/i)?.[1]?.toUpperCase() ?? null;
-  const numeric = numberValue(level ? levelGrades[level] : raw);
+  const numeric = numberValue(raw);
   return {
     raw,
     level,

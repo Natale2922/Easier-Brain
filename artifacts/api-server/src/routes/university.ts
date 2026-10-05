@@ -98,8 +98,10 @@ router.post("/university/grades", async (req, res): Promise<void> => {
     res.json({
       success: false,
       error: err instanceof Error && err.message === "SII_LOGIN_FAILED"
-        ? "No se pudo iniciar sesión en el SII con tu cuenta universitaria."
-        : "El SII no está disponible en este momento.",
+        ? "No se pudo iniciar sesión en el SII. Revisa tu usuario y contraseña."
+        : err instanceof Error && err.message === "SII_GRADES_NOT_FOUND"
+          ? "El acceso al SII fue correcto, pero no se encontró una vista de calificaciones compatible."
+          : "El SII no está disponible en este momento.",
       data: null,
     });
   }

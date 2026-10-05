@@ -81,13 +81,13 @@ paths:
       operationId: getUniversityGrades
       tags: [university]
       summary: Read academic grades from the UTXJ SII
-      description: Logs into the institutional SII with the same university credentials and returns normalized academic data.
+      description: Logs into the institutional SII with SII credentials and returns normalized academic data.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UniversityCredentials"
+              $ref: "#/components/schemas/SiiCredentials"
       responses:
         "200":
           description: Academic data from SII
@@ -107,6 +107,17 @@ components:
         - status
 
     UniversityCredentials:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+
+    SiiCredentials:
       type: object
       required: [username, password]
       properties:

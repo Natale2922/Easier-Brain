@@ -13,6 +13,7 @@ export * from './academicSubject';
 export * from './academicUnitGrade';
 export * from './getUniversityTasksParams';
 export * from './healthStatus';
+export * from './siiCredentials';
 export * from './universityCredentials';
 export * from './universityError';
 export * from './universityGradesResult';
