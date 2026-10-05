@@ -23,8 +23,10 @@ import { useGrades } from '@/context/GradesContext';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { TaskDetail } from '@/components/tasks/TaskDetail';
 import { AITaskDialog } from '@/components/ai/AITaskDialog';
-import { BrandMark } from '@/components/BrandMark';
+import { BrandLockup } from '@/components/BrandMark';
 import { useNotifications } from '@/hooks/useNotifications';
+import { displayFontFamily } from '@/theme/typography';
+import Svg, { Circle } from 'react-native-svg';
 
 type DrawerRoute = '/(tabs)' | '/calendar' | '/materias' | '/done' | '/horario' | '/calificaciones';
 
@@ -73,6 +75,17 @@ function getGreeting() {
   if (hour < 19) return 'Buenas tardes';
   return 'Buenas noches';
 }
+
+function formatTodayLabel() {
+  return new Date().toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+const PROGRESS_RING_RADIUS = 24;
+const PROGRESS_RING_LENGTH = 2 * Math.PI * PROGRESS_RING_RADIUS;
 
 export default function TasksScreen() {
   const colors = useColors();
@@ -136,6 +149,12 @@ export default function TasksScreen() {
   const completedCount = tasks.filter(task => task.completed).length;
   const todayKey = dateKey(new Date());
   const dueTodayCount = pendingTasks.filter(task => task.dueDate === todayKey).length;
+  const todayTaskTotal = tasks.filter(task => task.dueDate === todayKey).length;
+  const completedTodayCount = tasks.filter(task => task.dueDate === todayKey && task.completed).length;
+  const todayProgress = todayTaskTotal
+    ? Math.round((completedTodayCount / todayTaskTotal) * 100)
+    : 0;
+  const futureTaskCount = pendingTasks.filter(task => task.dueDate && task.dueDate > todayKey).length;
   const firstName = userFullname?.trim().split(/\s+/)[0] ?? 'estudiante';
 
   const doSync = useCallback(async () => {
@@ -213,6 +232,7 @@ export default function TasksScreen() {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
+            <View style={styles.brandGroup}>
             <Pressable
               onPress={() => {
                 Haptics.selectionAsync();
@@ -226,7 +246,8 @@ export default function TasksScreen() {
             >
               <Feather name="menu" size={20} color={colors.foreground} />
             </Pressable>
-            <BrandMark size={46} />
+              <BrandLockup size={32} />
+            </View>
             <View style={styles.headerRight}>
               <Pressable
                 onPress={() => Haptics.selectionAsync()}
@@ -247,39 +268,89 @@ export default function TasksScreen() {
             </View>
           </View>
 
-          {/* Greeting and AI card */}
-          <View style={styles.greetingRow}>
-            <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={[styles.greeting, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                {getGreeting()}, {firstName} <Text style={{ color: colors.primary }}>✦</Text>
-              </Text>
-              <Text style={[styles.heroTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-                Vamos a tener{'\n'}un gran día.
+          {/* Editorial greeting and daily focus */}
+          <View style={styles.intro}>
+            <View style={styles.dateEyebrow}>
+              <View style={[styles.eyebrowDot, { backgroundColor: colors.success, shadowColor: colors.success }]} />
+              <Text style={[styles.dateEyebrowText, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
+                {formatTodayLabel()}
               </Text>
             </View>
-            <Pressable
-              onPress={() => setAiDialogVisible(true)}
-              style={({ pressed }) => [
-                styles.aiCard,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.86 : 1 },
-              ]}
-            >
-              <View style={styles.aiCardTop}>
-                <Feather name="star" size={16} color="#FFF" />
-                <Text style={[styles.aiTitle, { fontFamily: 'Inter_600SemiBold' }]}>Pregunta a Nuvo</Text>
-                <Feather name="arrow-right" size={15} color="#FFF" />
-              </View>
-              <Text style={[styles.aiSubtitle, { fontFamily: 'Inter_400Regular' }]}>Pide, planifica, organiza.</Text>
-            </Pressable>
+            <Text style={[styles.heroTitle, { color: colors.foreground, fontFamily: displayFontFamily }]}>
+              Vamos a tener{'\n'}un gran <Text style={{ color: colors.primary }}>día.</Text>
+            </Text>
+            <Text style={[styles.greeting, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              {getGreeting()}, {firstName}. Tienes espacio para lo importante.
+            </Text>
           </View>
 
-          {/* Metrics */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.metricsRow}>
-            <MetricCard icon="check-square" value={String(dueTodayCount)} label="Tareas hoy" hint={`${pendingTasks.length} pendientes`} color={colors.primary} colors={colors} />
-            <MetricCard icon="calendar" value={String(tasks.filter(task => task.dueDate && !isOverdue(task)).length)} label="Próximas" hint={nextEvent ? '1 próximo' : 'Sin fechas'} color="#3975DA" colors={colors} />
-            <MetricCard icon="alert-circle" value={String(overdueCount)} label="Vencidas" hint={overdueCount ? 'Requiere atención' : 'Todo en orden'} color="#C85B69" colors={colors} />
-            <MetricCard icon="check-circle" value={String(completedCount)} label="Completadas" hint="En tu archivo" color="#309A7D" colors={colors} />
-          </ScrollView>
+          <View style={[styles.focusCard, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
+            <View style={styles.focusTop}>
+              <View style={styles.focusCopy}>
+                <View style={styles.focusKicker}>
+                  <Feather name="star" size={13} color={colors.primaryForeground} />
+                  <Text style={[styles.focusKickerText, { color: colors.primaryForeground, fontFamily: 'Inter_700Bold' }]}>
+                    TU FOCO DE HOY
+                  </Text>
+                </View>
+                <Text style={[styles.focusTitle, { color: colors.primaryForeground, fontFamily: displayFontFamily }]}>
+                  Un paso a la vez.
+                </Text>
+                <Text style={[styles.focusSubtitle, { color: colors.primaryForeground + 'D9', fontFamily: 'Inter_400Regular' }]}>
+                  {dueTodayCount
+                    ? `${dueTodayCount} ${dueTodayCount === 1 ? 'tarea pendiente' : 'tareas pendientes'} para hoy${overdueCount ? ` · ${overdueCount} vencidas` : ''}`
+                    : overdueCount
+                      ? `${overdueCount} ${overdueCount === 1 ? 'tarea vencida' : 'tareas vencidas'} para revisar`
+                      : 'Tu agenda de hoy está despejada.'}
+                </Text>
+              </View>
+              <View style={styles.progressRing}>
+                <Svg width={60} height={60} viewBox="0 0 60 60">
+                  <Circle
+                    cx={30}
+                    cy={30}
+                    r={PROGRESS_RING_RADIUS}
+                    fill="none"
+                    stroke={colors.primaryForeground + '45'}
+                    strokeWidth={4}
+                  />
+                  <Circle
+                    cx={30}
+                    cy={30}
+                    r={PROGRESS_RING_RADIUS}
+                    fill="none"
+                    stroke={colors.primaryForeground}
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    strokeDasharray={`${PROGRESS_RING_LENGTH} ${PROGRESS_RING_LENGTH}`}
+                    strokeDashoffset={PROGRESS_RING_LENGTH * (1 - todayProgress / 100)}
+                    transform="rotate(-90 30 30)"
+                  />
+                </Svg>
+                <Text style={[styles.progressValue, { color: colors.primaryForeground, fontFamily: 'Inter_700Bold' }]}>
+                  {todayProgress}%
+                </Text>
+              </View>
+            </View>
+            <View style={styles.focusFooter}>
+              <Text style={[styles.focusFooterLabel, { color: colors.primaryForeground + 'CC', fontFamily: 'Inter_500Medium' }]}>
+                PROGRESO DE HOY
+              </Text>
+              <Text style={[styles.focusFooterValue, { color: colors.primaryForeground, fontFamily: 'Inter_600SemiBold' }]}>
+                {completedTodayCount} / {todayTaskTotal} completas
+              </Text>
+            </View>
+            <View style={[styles.focusProgressTrack, { backgroundColor: colors.primaryForeground + '35' }]}>
+              <View style={[styles.focusProgressFill, { backgroundColor: colors.primaryForeground, width: `${todayProgress}%` }]} />
+            </View>
+          </View>
+
+          {/* Compact task summary */}
+          <View style={styles.metricsRow}>
+            <MetricCard value={String(dueTodayCount)} label="para hoy" colors={colors} />
+            <MetricCard value={String(futureTaskCount)} label="próximas" colors={colors} />
+            <MetricCard value={String(completedCount)} label="completadas" colors={colors} />
+          </View>
 
           {/* Smart input */}
           <Pressable
@@ -387,7 +458,7 @@ export default function TasksScreen() {
           >
             <Pressable onPress={event => event.stopPropagation()} style={styles.drawerInner}>
               <View style={[styles.drawerBrand, { borderBottomColor: colors.border }]}>
-                <BrandMark size={42} />
+                <BrandLockup size={34} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.drawerBrandSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Tu espacio de organización</Text>
                 </View>
@@ -466,28 +537,18 @@ export default function TasksScreen() {
 }
 
 function MetricCard({
-  icon,
   value,
   label,
-  hint,
-  color,
   colors,
 }: {
-  icon: keyof typeof Feather.glyphMap;
   value: string;
   label: string;
-  hint: string;
-  color: string;
   colors: ReturnType<typeof useColors>;
 }) {
   return (
-    <View style={[styles.metricCard, { backgroundColor: color + '0D', borderColor: color + '18' }]}>
-      <View style={[styles.metricIcon, { backgroundColor: color + '17' }]}>
-        <Feather name={icon} size={17} color={color} />
-      </View>
-      <Text style={[styles.metricValue, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{value}</Text>
-      <Text style={[styles.metricLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{label}</Text>
-      <Text style={[styles.metricHint, { color, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>{hint}</Text>
+    <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Text style={[styles.metricValue, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{value}</Text>
+      <Text style={[styles.metricLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>{label}</Text>
     </View>
   );
 }
@@ -521,25 +582,37 @@ function DrawerItem({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 18, gap: 0 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 54, marginBottom: 22 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, marginBottom: 20 },
+  brandGroup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIcon: { width: 40, height: 40, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   notificationDot: { position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#FFF' },
   avatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 16 },
-  greetingRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 22 },
-  greeting: { fontSize: 13, marginBottom: 7 },
-  heroTitle: { fontSize: 29, lineHeight: 34, letterSpacing: -0.8 },
-  aiCard: { width: 138, minHeight: 88, borderRadius: 17, padding: 14, justifyContent: 'space-between' },
-  aiCardTop: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  aiTitle: { color: '#FFF', fontSize: 11, flex: 1 },
-  aiSubtitle: { color: '#FFFFFFCC', fontSize: 10, lineHeight: 14 },
-  metricsRow: { gap: 8, paddingBottom: 18 },
-  metricCard: { width: 106, minHeight: 143, borderRadius: 16, borderWidth: 1, padding: 12 },
-  metricIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
-  metricValue: { fontSize: 25, lineHeight: 28 },
-  metricLabel: { fontSize: 11, marginTop: 4 },
-  metricHint: { fontSize: 9, marginTop: 5 },
+  intro: { marginBottom: 18 },
+  dateEyebrow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  eyebrowDot: { width: 6, height: 6, borderRadius: 3, shadowOpacity: 0.45, shadowRadius: 4, elevation: 1 },
+  dateEyebrowText: { fontSize: 11, textTransform: 'capitalize' },
+  greeting: { fontSize: 12, lineHeight: 18, marginTop: 7 },
+  heroTitle: { fontSize: 32, lineHeight: 36, letterSpacing: -0.9 },
+  focusCard: { borderRadius: 20, padding: 18, marginBottom: 13, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 16, elevation: 4 },
+  focusTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  focusCopy: { flex: 1 },
+  focusKicker: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  focusKickerText: { fontSize: 10, letterSpacing: 1 },
+  focusTitle: { fontSize: 22, lineHeight: 27, marginTop: 11, marginBottom: 4 },
+  focusSubtitle: { fontSize: 11, lineHeight: 16 },
+  progressRing: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
+  progressValue: { position: 'absolute', fontSize: 12 },
+  focusFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 15, marginBottom: 8 },
+  focusFooterLabel: { fontSize: 9, letterSpacing: 0.8 },
+  focusFooterValue: { fontSize: 10 },
+  focusProgressTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  focusProgressFill: { height: '100%', borderRadius: 2 },
+  metricsRow: { flexDirection: 'row', gap: 8, marginTop: 13, marginBottom: 21 },
+  metricCard: { flex: 1, minHeight: 70, borderRadius: 15, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 11 },
+  metricValue: { fontSize: 21, lineHeight: 25 },
+  metricLabel: { fontSize: 10, marginTop: 3 },
   smartInput: { minHeight: 58, borderRadius: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, shadowColor: '#31265C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
   smartPlaceholder: { flex: 1, fontSize: 12 },
   sendButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },

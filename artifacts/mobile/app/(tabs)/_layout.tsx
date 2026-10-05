@@ -21,13 +21,14 @@ export default function TabLayout() {
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.card,
-          borderTopWidth: 0,
+          backgroundColor: isIOS ? 'transparent' : colors.background,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
           elevation: 0,
-          shadowColor: '#000',
+          shadowColor: '#352753',
           shadowOffset: { width: 0, height: -1 },
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
+          shadowOpacity: 0.05,
+          shadowRadius: 14,
           ...(isWeb ? { height: 84 } : { height: 80 }),
         },
         tabBarBackground: () =>
@@ -40,6 +41,7 @@ export default function TabLayout() {
           ) : null,
         tabBarLabelStyle: {
           fontSize: 10,
+          fontWeight: '600',
           marginBottom: Platform.OS === 'ios' ? 0 : 4,
         },
       }}
@@ -48,74 +50,78 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Tareas',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="list.bullet.clipboard" tintColor={color} size={22} />
-            ) : (
-              <Feather name="check-square" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, { backgroundColor: focused ? colors.secondary : 'transparent' }]}>
+              {isIOS ? <SymbolView name="list.bullet.clipboard" tintColor={color} size={20} /> : <Feather name="check-square" size={20} color={color} />}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="calificaciones"
         options={{
           title: 'Calificaciones',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="graduationcap.fill" tintColor={color} size={22} />
-            ) : (
-              <Feather name="award" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, { backgroundColor: focused ? colors.secondary : 'transparent' }]}>
+              {isIOS ? <SymbolView name="graduationcap.fill" tintColor={color} size={20} /> : <Feather name="award" size={20} color={color} />}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="done"
         options={{
           title: 'Archivo',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="checkmark.circle.fill" tintColor={color} size={22} />
-            ) : (
-              <Feather name="check-circle" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, { backgroundColor: focused ? colors.secondary : 'transparent' }]}>
+              {isIOS ? <SymbolView name="checkmark.circle.fill" tintColor={color} size={20} /> : <Feather name="check-circle" size={20} color={color} />}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
           title: 'Calendario',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="calendar" tintColor={color} size={22} />
-            ) : (
-              <Feather name="calendar" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, { backgroundColor: focused ? colors.secondary : 'transparent' }]}>
+              {isIOS ? <SymbolView name="calendar" tintColor={color} size={20} /> : <Feather name="calendar" size={20} color={color} />}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="materias"
         options={{
           title: 'Materias',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="book.closed.fill" tintColor={color} size={22} />
-            ) : (
-              <Feather name="book-open" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, { backgroundColor: focused ? colors.secondary : 'transparent' }]}>
+              {isIOS ? <SymbolView name="book.closed.fill" tintColor={color} size={20} /> : <Feather name="book-open" size={20} color={color} />}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="horario"
         options={{
           title: 'Horario',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="clock.fill" tintColor={color} size={22} />
-            ) : (
-              <Feather name="clock" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, { backgroundColor: focused ? colors.secondary : 'transparent' }]}>
+              {isIOS ? <SymbolView name="clock.fill" tintColor={color} size={20} /> : <Feather name="clock" size={20} color={color} />}
+            </View>
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconPill: {
+    width: 36,
+    height: 28,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

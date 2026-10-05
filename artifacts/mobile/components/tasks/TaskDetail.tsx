@@ -15,11 +15,12 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { isOverdue, type Task, type Priority, useTasks } from '@/context/TasksContext';
 import { parseDueDate } from '@/utils/date';
+import { displayFontFamily } from '@/theme/typography';
 
 const PRIORITY_COLORS: Record<Priority, string> = {
-  high: '#FF7B7B',
-  medium: '#FFB347',
-  low: '#5EC97E',
+  high: '#C26373',
+  medium: '#BB7B38',
+  low: '#4E8A72',
 };
 const PRIORITY_LABELS: Record<Priority, string> = {
   high: 'Alta',
@@ -43,11 +44,11 @@ function formatFullDate(iso: string, time?: string): string {
 function getDaysLeft(iso: string): { text: string; color: string } {
   const d = parseDueDate(iso);
   const diff = d ? Math.ceil((d.getTime() - Date.now()) / 86400000) : 0;
-  if (diff < 0) return { text: `Vencida hace ${Math.abs(diff)} días`, color: '#FF7B7B' };
-  if (diff === 0) return { text: 'Vence hoy', color: '#FF7B7B' };
-  if (diff === 1) return { text: 'Vence mañana', color: '#FFB347' };
-  if (diff <= 7) return { text: `Faltan ${diff} días`, color: '#FFB347' };
-  return { text: `Faltan ${diff} días`, color: '#5EC97E' };
+  if (diff < 0) return { text: `Vencida hace ${Math.abs(diff)} días`, color: '#C26373' };
+  if (diff === 0) return { text: 'Vence hoy', color: '#C26373' };
+  if (diff === 1) return { text: 'Vence mañana', color: '#BB7B38' };
+  if (diff <= 7) return { text: `Faltan ${diff} días`, color: '#BB7B38' };
+  return { text: `Faltan ${diff} días`, color: '#4E8A72' };
 }
 
 interface Props {
@@ -114,9 +115,9 @@ export function TaskDetail({ task, onClose }: Props) {
                 <Text style={[styles.statusText, { color: '#22C55E', fontFamily: 'Inter_600SemiBold' }]}>Completada</Text>
               </View>
             ) : isOverdue(task) ? (
-              <View style={[styles.statusChip, { backgroundColor: '#FF7B7B18' }]}>
-                <Feather name="alert-circle" size={13} color="#FF7B7B" />
-                <Text style={[styles.statusText, { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' }]}>Vencida</Text>
+              <View style={[styles.statusChip, { backgroundColor: colors.destructive + '18' }]}>
+                <Feather name="alert-circle" size={13} color={colors.destructive} />
+                <Text style={[styles.statusText, { color: colors.destructive, fontFamily: 'Inter_600SemiBold' }]}>Vencida</Text>
               </View>
             ) : (
               <View style={[styles.statusChip, { backgroundColor: colors.primary + '18' }]}>
@@ -133,7 +134,7 @@ export function TaskDetail({ task, onClose }: Props) {
           </View>
 
           {/* Title */}
-          <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.title, { color: colors.foreground, fontFamily: displayFontFamily }]}>
             {task.title}
           </Text>
 

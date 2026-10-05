@@ -7,9 +7,9 @@ import { useColors } from "@/hooks/useColors";
 import { type Task, type Priority, useTasks } from "@/context/TasksContext";
 
 const PRIORITY_COLORS: Record<Priority, string> = {
-  high: "#FF7B7B",
-  medium: "#FFB347",
-  low: "#5EC97E",
+  high: "#C26373",
+  medium: "#BB7B38",
+  low: "#4E8A72",
 };
 const PRIORITY_LABELS: Record<Priority, string> = {
   high: "Alta",
@@ -17,9 +17,9 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Baja",
 };
 const DELIVERY_CONFIG = {
-  campus: { label: "Campus", icon: "monitor" as const, color: "#7C6FCD" },
-  email: { label: "Correo", icon: "mail" as const, color: "#3B82F6" },
-  class: { label: "En clase", icon: "users" as const, color: "#10B981" },
+  campus: { label: "Campus", icon: "monitor" as const, color: "#7056C7" },
+  email: { label: "Correo", icon: "mail" as const, color: "#5D75B8" },
+  class: { label: "En clase", icon: "users" as const, color: "#4E8A72" },
 };
 
 function formatDueDate(isoString: string): string {
@@ -45,14 +45,14 @@ interface Props {
 function getDueDateColor(isoString: string): string {
   const date = parseDueDate(isoString);
 
-  if (!date) return "#9CA3AF";
+  if (!date) return "#8A819D";
 
   const diffDays = Math.ceil((date.getTime() - Date.now()) / 86400000);
 
-  if (diffDays <= 0) return "#FF7B7B";
-  if (diffDays <= 1) return "#FF7B7B";
-  if (diffDays <= 3) return "#FFB347";
-  return "#5EC97E";
+  if (diffDays <= 0) return "#C26373";
+  if (diffDays <= 1) return "#C26373";
+  if (diffDays <= 3) return "#BB7B38";
+  return "#4E8A72";
 }
 export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
   const colors = useColors();
@@ -65,7 +65,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
     ? DELIVERY_CONFIG[task.deliveryMethod]
     : null;
   const stripeColor = overdueArchived
-    ? "#FF7B7B"
+    ? colors.destructive
     : task.completed
       ? colors.border
       : priorityColor;
@@ -112,9 +112,9 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
       style={[
         styles.container,
         {
-          backgroundColor: overdueArchived ? "#FF7B7B08" : colors.card,
+          backgroundColor: overdueArchived ? colors.destructive + "08" : colors.card,
           borderRadius: 16,
-          borderColor: overdueArchived ? "#FF7B7B30" : colors.border,
+          borderColor: overdueArchived ? colors.destructive + "30" : colors.border,
           opacity: rowOpacity,
         },
       ]}
@@ -134,7 +134,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
             styles.circle,
             {
               borderColor: overdueArchived
-                ? "#FF7B7B60"
+                ? colors.destructive + "60"
                 : task.completed
                   ? priorityColor
                   : colors.border,
@@ -149,7 +149,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
             <Feather
               name="check"
               size={13}
-              color={overdueArchived ? "#FF7B7B60" : priorityColor}
+              color={overdueArchived ? colors.destructive + "60" : priorityColor}
             />
           </Animated.View>
         </View>
@@ -204,14 +204,14 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
             <View
               style={[
                 styles.badge,
-                { backgroundColor: "#FF7B7B18", borderRadius: 6 },
+                { backgroundColor: colors.destructive + "18", borderRadius: 8 },
               ]}
             >
-              <Feather name="alert-circle" size={9} color="#FF7B7B" />
+              <Feather name="alert-circle" size={9} color={colors.destructive} />
               <Text
                 style={[
                   styles.badgeText,
-                  { color: "#FF7B7B", fontFamily: "Inter_600SemiBold" },
+                  { color: colors.destructive, fontFamily: "Inter_600SemiBold" },
                 ]}
               >
                 VENCIDA
@@ -221,7 +221,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
             <View
               style={[
                 styles.badge,
-                { backgroundColor: priorityColor + "18", borderRadius: 6 },
+                { backgroundColor: priorityColor + "18", borderRadius: 8 },
               ]}
             >
               <View
@@ -242,7 +242,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
             <View
               style={[
                 styles.badge,
-                { backgroundColor: colors.primary + "14", borderRadius: 6 },
+                { backgroundColor: colors.primary + "14", borderRadius: 8 },
               ]}
             >
               <Feather name="book" size={9} color={colors.primary} />
@@ -264,7 +264,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
                 styles.badge,
                 {
                   backgroundColor: getDueDateColor(task.dueDate) + "18",
-                  borderRadius: 6,
+                  borderRadius: 8,
                 },
               ]}
             >
@@ -292,7 +292,7 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
             <View
               style={[
                 styles.badge,
-                { backgroundColor: deliveryCfg.color + "18", borderRadius: 6 },
+                { backgroundColor: deliveryCfg.color + "18", borderRadius: 8 },
               ]}
             >
               <Feather
@@ -315,14 +315,14 @@ export function TaskItem({ task, onPress, overdueArchived = false }: Props) {
             <View
               style={[
                 styles.badge,
-                { backgroundColor: "#10B98118", borderRadius: 6 },
+                { backgroundColor: colors.success + "18", borderRadius: 8 },
               ]}
             >
-              <Feather name="globe" size={9} color="#10B981" />
+              <Feather name="globe" size={9} color={colors.success} />
               <Text
                 style={[
                   styles.badgeText,
-                  { color: "#10B981", fontFamily: "Inter_500Medium" },
+                  { color: colors.success, fontFamily: "Inter_500Medium" },
                 ]}
               >
                 Campus
@@ -360,14 +360,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     overflow: "hidden",
     borderWidth: 1,
-    shadowColor: "#000",
+    shadowColor: "#352753",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.045,
+    shadowRadius: 9,
     elevation: 1,
   },
   stripe: { width: 3, alignSelf: "stretch" },
-  checkArea: { padding: 14, paddingRight: 10 },
+  checkArea: { padding: 12, paddingRight: 9 },
   circle: {
     width: 22,
     height: 22,
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  content: { flex: 1, paddingVertical: 12, paddingRight: 8, gap: 3 },
+  content: { flex: 1, paddingVertical: 11, paddingRight: 7, gap: 3 },
   title: { fontSize: 15, lineHeight: 20 },
   note: { fontSize: 12, lineHeight: 16 },
   metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 3 },
