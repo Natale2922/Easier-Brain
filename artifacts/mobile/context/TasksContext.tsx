@@ -87,6 +87,7 @@ interface TasksContextType {
     sesskey: string,
     reloginFn?: ReloginFn,
   ) => Promise<void>;
+  clearUniversityTasks: () => Promise<void>;
   isSyncing: boolean;
   lastSyncAt: string | null;
   isLoading: boolean;
@@ -118,14 +119,18 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const isSyncingRef = useRef(false);
+  const syncGenerationRef = useRef(0);
+  const firstLoginAtRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const loadGeneration = syncGenerationRef.current;
     Promise.all([
       AsyncStorage.getItem(STORAGE_KEY),
       AsyncStorage.getItem(SYNC_KEY),
       AsyncStorage.getItem('@tasks_v1'), // migrate old key
     ])
       .then(([tasksRaw, syncRaw, oldRaw]) => {
+        if (loadGeneration !== syncGenerationRef.current) return;
         if (tasksRaw) {
           setTasks(JSON.parse(tasksRaw));
         } else if (oldRaw) {
@@ -140,7 +145,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (tasks.length) syncSubjectsFromTasks(tasks);
+    if (tasks.length) {
+      syncSubjectsFromTasks(tasks.filter(task => task.source === 'university'));
+    }
   }, [tasks, syncSubjectsFromTasks]);
 
   const persist = useCallback((newTasks: Task[]) => {
@@ -241,17 +248,48 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const clearUniversityTasks = useCallback(async () => {
+    syncGenerationRef.current += 1;
+    firstLoginAtRef.current = null;
+    isSyncingRef.current = false;
+    setIsSyncing(false);
+    let currentTasks = tasks;
+    if (isLoading) {
+      try {
+        const [tasksRaw, legacyRaw] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY),
+          AsyncStorage.getItem('@tasks_v1'),
+        ]);
+        const raw = tasksRaw ?? legacyRaw;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) currentTasks = parsed;
+        }
+      } catch {
+        // Retain the in-memory tasks if the local cache cannot be read.
+      }
+    }
+    const keptTasks = currentTasks.filter(task => task.source !== 'university');
+    setTasks(keptTasks);
+    setIsLoading(false);
+    setLastSyncAt(null);
+    setSyncError(null);
+    await Promise.all([
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(keptTasks)),
+      AsyncStorage.multiRemove([SYNC_KEY, '@tasks_v1']),
+    ]);
+  }, [isLoading, tasks]);
+
   function shouldKeepTaskFromFirstLogin(task: Task): boolean {
     if (!task.dueDate) return false;
     return isAfterFirstLoginWindow(task.dueDate, firstLoginAtRef.current);
   }
 
-  const firstLoginAtRef = useRef<string | null>(null);
-
   const syncUniversityTasks = useCallback(
     async (sessionToken: string, sesskey: string, reloginFn?: ReloginFn) => {
       if (isSyncingRef.current) return;
       isSyncingRef.current = true;
+      const syncGeneration = syncGenerationRef.current;
       setIsSyncing(true);
       setSyncError(null);
 
@@ -274,11 +312,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
           }
           // Still expired (or no creds stored) — signal caller to logout
           if ((result as any).sessionExpired) {
+            if (syncGeneration !== syncGenerationRef.current) return;
             setSyncError('SESSION_EXPIRED_FINAL');
             return;
           }
         }
 
+        if (syncGeneration !== syncGenerationRef.current) return;
         const firstLoginAt = firstLoginAtRef.current;
         const syncableTasks = (result.tasks as any[]).filter(task =>
           isAfterFirstLoginWindow(task.dueDate, firstLoginAt),
@@ -293,10 +333,14 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         setLastSyncAt(now);
         AsyncStorage.setItem(SYNC_KEY, now).catch(() => {});
       } catch {
-        setSyncError('Error de conexión al sincronizar');
+        if (syncGeneration === syncGenerationRef.current) {
+          setSyncError('Error de conexión al sincronizar');
+        }
       } finally {
-        isSyncingRef.current = false;
-        setIsSyncing(false);
+        if (syncGeneration === syncGenerationRef.current) {
+          isSyncingRef.current = false;
+          setIsSyncing(false);
+        }
       }
     },
     [persist, applyMoodleTasks],
@@ -304,7 +348,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <TasksContext.Provider
-      value={{ tasks, addTask, toggleTask, deleteTask, syncUniversityTasks, isSyncing, lastSyncAt, isLoading, syncError }}
+      value={{ tasks, addTask, toggleTask, deleteTask, syncUniversityTasks, clearUniversityTasks, isSyncing, lastSyncAt, isLoading, syncError }}
     >
       {children}
     </TasksContext.Provider>

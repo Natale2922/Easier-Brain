@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    AsyncStorage.multiRemove([AUTH_KEY, CREDS_KEY]).catch(() => {});
+    AsyncStorage.multiRemove([AUTH_KEY, CREDS_KEY, FIRST_LOGIN_KEY]).catch(() => {});
     setState({
       sessionToken: null,
       sesskey: null,

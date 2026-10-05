@@ -20,6 +20,7 @@ import { useColors } from '@/hooks/useColors';
 import { KeyboardAwareScrollViewCompat } from '@/components/common/KeyboardAwareScrollViewCompat';
 import { digitizeScheduleImage, type DetectedBlock } from '@/utils/digitizeSchedule';
 import { useAcademic } from '@/context/AcademicContext';
+import { useAuth } from '@/context/AuthContext';
 import { AppHeader, HeaderAction } from '@/components/common/AppHeader';
 
 const STORAGE_KEY = '@horario_v1';
@@ -68,6 +69,7 @@ const EMPTY_FORM: BlockFormState = {
 export default function HorarioScreen() {
   const colors = useColors();
   const { saveSchedule, updateSubjectDetails } = useAcademic();
+  const { isAuthenticated } = useAuth();
 
   const [blocks, setBlocks] = useState<ClassBlock[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -82,16 +84,22 @@ export default function HorarioScreen() {
   const [confirmVisible, setConfirmVisible] = useState(false);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setBlocks([]);
+      return;
+    }
+    let alive = true;
     AsyncStorage.getItem(STORAGE_KEY)
       .then(raw => {
-        if (raw) {
+        if (alive && raw) {
           const saved = JSON.parse(raw) as ClassBlock[];
           setBlocks(saved);
           saveSchedule(saved);
         }
       })
       .catch(() => {});
-  }, [saveSchedule]);
+    return () => { alive = false; };
+  }, [isAuthenticated, saveSchedule]);
 
   const persist = useCallback((b: ClassBlock[]) => {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(b)).catch(() => {});

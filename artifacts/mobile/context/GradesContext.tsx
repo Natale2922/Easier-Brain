@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getUniversityGrades } from '@workspace/api-client-react';
+import { useAuth } from '@/context/AuthContext';
 import { getGradeSummary, normalizeAcademicSnapshot, type AcademicSnapshot, type GradeSummary } from '@/utils/siiGrades';
 import {
   clearDeveloperSiiCredentials,
@@ -36,6 +37,7 @@ const emptySummary: GradeSummary = {
 const GradesContext = createContext<GradesContextValue | null>(null);
 
 export function GradesProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [snapshot, setSnapshot] = useState<AcademicSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -43,9 +45,13 @@ export function GradesProvider({ children }: { children: React.ReactNode }) {
   const [siiUsername, setSiiUsername] = useState<string | null>(null);
   const [isSiiAuthenticated, setIsSiiAuthenticated] = useState(false);
   const requestInFlight = useRef(false);
+  const requestGeneration = useRef(0);
+  const cacheGeneration = useRef(0);
+  const activeGradesSession = useRef(true);
 
   const requestGrades = useCallback(async (credentials: SiiCredentials, saveCredentials: boolean): Promise<boolean> => {
-    if (requestInFlight.current) return false;
+    if (requestInFlight.current || !activeGradesSession.current) return false;
+    const generation = requestGeneration.current;
     requestInFlight.current = true;
     setIsSyncing(true);
     setError(null);
@@ -53,6 +59,7 @@ export function GradesProvider({ children }: { children: React.ReactNode }) {
       const cleanCredentials = { username: credentials.username.trim(), password: credentials.password };
       if (!cleanCredentials.username || !cleanCredentials.password) throw new Error('Escribe tu usuario y contraseña del SII.');
       const result = await getUniversityGrades(cleanCredentials);
+      if (generation !== requestGeneration.current || !activeGradesSession.current) return false;
       if (!result.success || !result.data) throw new Error(result.error ?? 'No se pudieron consultar las calificaciones.');
       const next = normalizeAcademicSnapshot(result.data);
       if (!next.periods.length) {
@@ -62,11 +69,24 @@ export function GradesProvider({ children }: { children: React.ReactNode }) {
       setSiiUsername(cleanCredentials.username);
       setIsSiiAuthenticated(true);
       await AsyncStorage.setItem(GRADES_KEY, JSON.stringify(next));
+      if (generation !== requestGeneration.current || !activeGradesSession.current) {
+        await AsyncStorage.removeItem(GRADES_KEY);
+        return false;
+      }
       if (saveCredentials) await saveDeveloperSiiCredentials(cleanCredentials);
+      if (generation !== requestGeneration.current || !activeGradesSession.current) {
+        await Promise.allSettled([
+          AsyncStorage.removeItem(GRADES_KEY),
+          clearDeveloperSiiCredentials(),
+        ]);
+        return false;
+      }
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron actualizar las calificaciones.');
-      setIsSiiAuthenticated(false);
+      if (generation === requestGeneration.current && activeGradesSession.current) {
+        setError(err instanceof Error ? err.message : 'No se pudieron actualizar las calificaciones.');
+        setIsSiiAuthenticated(false);
+      }
       return false;
     } finally {
       requestInFlight.current = false;
@@ -74,9 +94,11 @@ export function GradesProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const loginSii = useCallback((username: string, password: string) => (
-    requestGrades({ username, password }, true)
-  ), [requestGrades]);
+  const loginSii = useCallback((username: string, password: string) => {
+    activeGradesSession.current = true;
+    requestGeneration.current += 1;
+    return requestGrades({ username, password }, true);
+  }, [requestGrades]);
 
   const syncGrades = useCallback(async () => {
     try {
@@ -92,25 +114,34 @@ export function GradesProvider({ children }: { children: React.ReactNode }) {
   }, [requestGrades]);
 
   const logoutSii = useCallback(async () => {
-    await Promise.all([
-      clearDeveloperSiiCredentials(),
-      AsyncStorage.removeItem(GRADES_KEY),
-    ]);
+    requestGeneration.current += 1;
+    cacheGeneration.current += 1;
+    activeGradesSession.current = false;
     setSnapshot(null);
     setSiiUsername(null);
     setIsSiiAuthenticated(false);
     setError(null);
+    await Promise.allSettled([
+      clearDeveloperSiiCredentials(),
+      AsyncStorage.removeItem(GRADES_KEY),
+    ]);
   }, []);
 
   useEffect(() => {
+    if (isAuthLoading) return;
+    const generation = cacheGeneration.current;
     let alive = true;
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return () => { alive = false; };
+    }
     (async () => {
       try {
         const [gradesRaw, credentials] = await Promise.all([
           AsyncStorage.getItem(GRADES_KEY),
           loadDeveloperSiiCredentials(),
         ]);
-        if (!alive) return;
+        if (!alive || generation !== cacheGeneration.current || !activeGradesSession.current) return;
         if (gradesRaw) setSnapshot(normalizeAcademicSnapshot(JSON.parse(gradesRaw)));
         if (credentials) {
           setSiiUsername(credentials.username);
@@ -123,7 +154,7 @@ export function GradesProvider({ children }: { children: React.ReactNode }) {
       }
     })();
     return () => { alive = false; };
-  }, [requestGrades]);
+  }, [isAuthenticated, isAuthLoading, requestGrades]);
 
   const value = useMemo(() => ({
     snapshot,

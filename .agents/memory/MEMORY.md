@@ -4,3 +4,4 @@
 - [Academic data and change notifications](academic-sync.md) — stable campus data is local; Moodle changes are detected during sync because this campus has no push channel.
 - [OpenAPI generation](openapi-generation.md) — validate schema nesting before running Orval; malformed YAML can surface as an unhelpful input-resolution error.
 - [SII credential boundary](sii-auth-security.md) — keep SII login separate from Moodle; store native credentials in SecureStore and disclose the portal's HTTP-only connection.
+- [Caché del campus por cuatrimestre](campus-term-cache.md) — materias, docentes y horarios permanecen en el dispositivo hasta que el estudiante cierre sesión.

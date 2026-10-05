@@ -18,6 +18,8 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, isOverdue, type Task } from '@/context/TasksContext';
 import { useAuth } from '@/context/AuthContext';
+import { useAcademic } from '@/context/AcademicContext';
+import { useGrades } from '@/context/GradesContext';
 import { TaskItem } from '@/components/tasks/TaskItem';
 import { TaskDetail } from '@/components/tasks/TaskDetail';
 import { AITaskDialog } from '@/components/ai/AITaskDialog';
@@ -83,6 +85,7 @@ export default function TasksScreen() {
     lastSyncAt,
     syncUniversityTasks,
     syncError,
+    clearUniversityTasks,
   } = useTasks();
   const {
     sessionToken,
@@ -92,12 +95,15 @@ export default function TasksScreen() {
     logout,
     reloginSilently,
   } = useAuth();
+  const { clearCampusData } = useAcademic();
+  const { logoutSii } = useGrades();
   const { scheduleBulkReminders, notifyCampusChanges } = useNotifications();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [aiDialogVisible, setAiDialogVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [logoutStep, setLogoutStep] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const drawerX = useRef(new Animated.Value(-Math.min(312, width * 0.84))).current;
   const logoutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
@@ -171,7 +177,8 @@ export default function TasksScreen() {
     if (route) router.push(route as any);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
     if (!logoutStep) {
       setLogoutStep(true);
       if (logoutTimer.current) clearTimeout(logoutTimer.current);
@@ -180,6 +187,12 @@ export default function TasksScreen() {
     }
     if (logoutTimer.current) clearTimeout(logoutTimer.current);
     setLogoutStep(false);
+    setIsLoggingOut(true);
+    await Promise.allSettled([
+      clearUniversityTasks(),
+      clearCampusData(),
+      logoutSii(),
+    ]);
     logout();
   };
 
@@ -414,8 +427,24 @@ export default function TasksScreen() {
                   <Text style={[styles.accountName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{userFullname || 'Mi cuenta'}</Text>
                   <Text style={[styles.accountSync, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Cuenta conectada</Text>
                 </View>
-                <Pressable onPress={handleLogout} hitSlop={8}>
-                  <Feather name={logoutStep ? 'check' : 'log-out'} size={17} color={logoutStep ? colors.destructive : colors.mutedForeground} />
+                <Pressable
+                  onPress={handleLogout}
+                  disabled={isLoggingOut}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={isLoggingOut ? 'Cerrando sesión' : logoutStep ? 'Confirmar cierre de sesión' : 'Cerrar sesión'}
+                  style={({ pressed }) => [
+                    styles.logoutButton,
+                    {
+                      backgroundColor: logoutStep ? colors.destructive + '14' : colors.secondary,
+                      opacity: pressed ? 0.78 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name={isLoggingOut ? 'loader' : logoutStep ? 'check' : 'log-out'} size={17} color={logoutStep || isLoggingOut ? colors.destructive : colors.mutedForeground} />
+                  <Text style={[styles.logoutButtonText, { color: logoutStep || isLoggingOut ? colors.destructive : colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                    {isLoggingOut ? 'Cerrando…' : logoutStep ? 'Confirmar' : 'Cerrar sesión'}
+                  </Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -554,4 +583,6 @@ const styles = StyleSheet.create({
   accountAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   accountName: { fontSize: 12 },
   accountSync: { fontSize: 10, marginTop: 2 },
+  logoutButton: { minHeight: 38, borderRadius: 12, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logoutButtonText: { fontSize: 10 },
 });

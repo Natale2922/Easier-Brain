@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface AcademicSubject {
@@ -33,9 +33,11 @@ interface AcademicContextValue extends AcademicStore {
   syncSubjectsFromTasks: (tasks: Array<{ courseName?: string }>) => void;
   saveSchedule: (schedule: AcademicScheduleEntry[]) => void;
   updateSubjectDetails: (name: string, details: { teacher?: string; room?: string }) => void;
+  clearCampusData: () => Promise<void>;
 }
 
 const STORAGE_KEY = '@nuvo_academic_db_v1';
+const SCHEDULE_STORAGE_KEY = '@horario_v1';
 const EMPTY_STORE: AcademicStore = { subjects: [], schedule: [], lastUpdatedAt: null };
 const AcademicContext = createContext<AcademicContextValue | null>(null);
 
@@ -45,13 +47,18 @@ function subjectId(name: string) {
 
 export function AcademicProvider({ children }: { children: React.ReactNode }) {
   const [store, setStore] = useState<AcademicStore>(EMPTY_STORE);
+  const loadGeneration = useRef(0);
 
   useEffect(() => {
+    const generation = loadGeneration.current;
+    let alive = true;
     AsyncStorage.getItem(STORAGE_KEY)
       .then(raw => {
-        if (raw) setStore({ ...EMPTY_STORE, ...JSON.parse(raw) });
+        if (!alive || generation !== loadGeneration.current || !raw) return;
+        setStore({ ...EMPTY_STORE, ...JSON.parse(raw) });
       })
       .catch(() => {});
+    return () => { alive = false; };
   }, []);
 
   const persist = useCallback((next: AcademicStore) => {
@@ -104,8 +111,14 @@ export function AcademicProvider({ children }: { children: React.ReactNode }) {
     });
   }, [persist]);
 
+  const clearCampusData = useCallback(async () => {
+    loadGeneration.current += 1;
+    setStore(EMPTY_STORE);
+    await AsyncStorage.multiRemove([STORAGE_KEY, SCHEDULE_STORAGE_KEY]);
+  }, []);
+
   return (
-    <AcademicContext.Provider value={{ ...store, syncSubjectsFromTasks, saveSchedule, updateSubjectDetails }}>
+    <AcademicContext.Provider value={{ ...store, syncSubjectsFromTasks, saveSchedule, updateSubjectDetails, clearCampusData }}>
       {children}
     </AcademicContext.Provider>
   );

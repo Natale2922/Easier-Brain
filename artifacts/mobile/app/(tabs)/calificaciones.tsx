@@ -89,7 +89,7 @@ export default function GradesScreen() {
               active={isSyncing}
               onPress={syncGrades}
             />
-            <HeaderAction icon="log-out" label="Salir" onPress={handleSiiLogout} />
+            <HeaderAction icon="log-out" label="Cerrar SII" onPress={handleSiiLogout} />
           </View>
         ) : undefined}
       />
