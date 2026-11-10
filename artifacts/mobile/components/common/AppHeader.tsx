@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { BrandLockup } from '@/components/BrandMark';
@@ -13,15 +13,22 @@ export function AppHeader({
   subtitle,
   actions,
   onMenu,
+  onBack,
+  onAvatarPress,
+  showAvatar = true,
 }: {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
   onMenu?: () => void;
+  onBack?: () => void;
+  onAvatarPress?: () => void;
+  showAvatar?: boolean;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { userFullname } = useAuth();
+  const pathname = usePathname();
   const firstName = userFullname?.trim().charAt(0).toUpperCase() || 'N';
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -30,19 +37,29 @@ export function AppHeader({
       <View style={styles.topRow}>
         <View style={styles.brandAndMenu}>
           <Pressable
-            onPress={onMenu ?? (() => router.push('/(tabs)' as any))}
+            onPress={onBack ?? onMenu ?? (() => router.push('/(tabs)' as any))}
             style={({ pressed }) => [styles.iconButton, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
-            accessibilityLabel="Abrir menú"
+            accessibilityLabel={onBack ? 'Volver' : 'Abrir menú'}
           >
-            <Feather name="menu" size={19} color={colors.foreground} />
+            <Feather name={onBack ? 'arrow-left' : 'menu'} size={19} color={colors.foreground} />
           </Pressable>
           <BrandLockup size={30} />
         </View>
         <View style={styles.rightActions}>
           {actions}
-          <View style={[styles.avatar, { backgroundColor: colors.secondary, borderColor: colors.primary + '35' }]}>
-            <Text style={[styles.avatarText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{firstName}</Text>
-          </View>
+          {showAvatar ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cambiar cuenta"
+              onPress={onAvatarPress ?? (pathname === '/accounts' ? undefined : () => router.push('/accounts' as any))}
+              style={({ pressed }) => [
+                styles.avatar,
+                { backgroundColor: colors.secondary, borderColor: colors.primary + '35', opacity: pressed ? 0.76 : 1 },
+              ]}
+            >
+              <Text style={[styles.avatarText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>{firstName}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
       <View style={styles.titleBlock}>

@@ -28,7 +28,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { displayFontFamily } from '@/theme/typography';
 import Svg, { Circle } from 'react-native-svg';
 
-type DrawerRoute = '/(tabs)' | '/calendar' | '/materias' | '/done' | '/horario' | '/calificaciones';
+type DrawerRoute = '/(tabs)' | '/calendar' | '/materias' | '/done' | '/horario' | '/calificaciones' | '/accounts';
 
 const drawerItems: { label: string; icon: keyof typeof Feather.glyphMap; route?: DrawerRoute }[] = [
   { label: 'Inicio', icon: 'home', route: '/(tabs)' },
@@ -38,6 +38,7 @@ const drawerItems: { label: string; icon: keyof typeof Feather.glyphMap; route?:
   { label: 'Tareas', icon: 'check-square', route: '/(tabs)' },
   { label: 'Archivo', icon: 'archive', route: '/done' },
   { label: 'Horario', icon: 'clock', route: '/horario' },
+  { label: 'Cambiar cuenta', icon: 'users', route: '/accounts' },
 ];
 
 const toolItems: { label: string; icon: keyof typeof Feather.glyphMap; route?: DrawerRoute }[] = [
@@ -260,11 +261,19 @@ export default function TasksScreen() {
                 <Feather name="bell" size={18} color={colors.foreground} />
                 {overdueCount > 0 && <View style={[styles.notificationDot, { backgroundColor: colors.destructive }]} />}
               </Pressable>
-              <View style={[styles.avatar, { backgroundColor: colors.secondary, borderColor: colors.primary + '35' }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cambiar cuenta"
+                onPress={() => router.push('/accounts')}
+                style={({ pressed }) => [
+                  styles.avatar,
+                  { backgroundColor: colors.secondary, borderColor: colors.primary + '35', opacity: pressed ? 0.76 : 1 },
+                ]}
+              >
                 <Text style={[styles.avatarText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
                   {firstName.charAt(0).toUpperCase()}
                 </Text>
-              </View>
+              </Pressable>
             </View>
           </View>
 

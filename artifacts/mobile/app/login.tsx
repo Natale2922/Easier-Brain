@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
+  Alert,
   View,
   Text,
   TextInput,
@@ -7,7 +8,7 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
-  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -16,34 +17,67 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { BrandMark } from '@/components/BrandMark';
 import { displayFontFamily } from '@/theme/typography';
+import { KeyboardAwareScrollViewCompat } from '@/components/common/KeyboardAwareScrollViewCompat';
+import { SaveCampusAccountPrompt } from '@/components/auth/SaveCampusAccountPrompt';
+import {
+  isCampusCredentialStorageAvailable,
+  loadCampusCredentials,
+  loadSavedCampusAccounts,
+  type SavedCampusAccount,
+} from '@/utils/campusCredentialVault';
 
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
 
+  const [savedAccounts, setSavedAccounts] = useState<SavedCampusAccount[]>([]);
+  const [canSaveCredentials, setCanSaveCredentials] = useState(Platform.OS !== 'web');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consentVisible, setConsentVisible] = useState(false);
 
+  const usernameRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  const handleLogin = async () => {
+  useEffect(() => {
+    let active = true;
+    Promise.all([loadSavedCampusAccounts(), isCampusCredentialStorageAvailable()])
+      .then(([accounts, storageAvailable]) => {
+        if (!active) return;
+        setSavedAccounts(accounts);
+        setCanSaveCredentials(storageAvailable);
+      })
+      .catch(() => {
+        if (active) setCanSaveCredentials(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const startLogin = () => {
     if (!username.trim() || !password) {
       setError('Ingresa tu usuario y contraseña');
       return;
     }
-
     setError(null);
+    setConsentVisible(true);
+  };
+
+  const completeLogin = async (saveCredentials: boolean) => {
+    if (!username.trim() || !password) return;
+    setConsentVisible(false);
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const result = await login(username.trim(), password);
+    const result = await login(username.trim(), password, saveCredentials);
     setIsLoading(false);
 
     if (!result.success) {
@@ -51,20 +85,42 @@ export default function LoginScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (result.saveError) Alert.alert('Cuenta iniciada', result.saveError);
     }
   };
 
+  const loginWithSavedAccount = async (account: SavedCampusAccount) => {
+    if (isLoading) return;
+    setError(null);
+    setIsLoading(true);
+    const credentials = await loadCampusCredentials(account.id);
+    if (!credentials) {
+      setIsLoading(false);
+      setSavedAccounts(await loadSavedCampusAccounts());
+      setError('No se pudo abrir esta cuenta guardada. Inicia sesión de nuevo.');
+      return;
+    }
+
+    const result = await login(credentials.username, credentials.password, false);
+    setIsLoading(false);
+    if (!result.success) {
+      setError(result.error ?? 'No se pudo iniciar sesión con esta cuenta.');
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareScrollViewCompat
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      contentContainerStyle={[
+        styles.inner,
+        { paddingTop: topPad + 24, paddingBottom: bottomPad + 24 },
+      ]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      bottomOffset={24}
     >
-      <View
-        style={[
-          styles.inner,
-          { paddingTop: topPad + 32, paddingBottom: bottomPad + 24 },
-        ]}
-      >
         {/* Brand header */}
         <View style={styles.brandArea}>
           <BrandMark size={64} />
@@ -85,6 +141,63 @@ export default function LoginScreen() {
             Campus Virtual · UTXicotepec
           </Text>
         </View>
+
+        {savedAccounts.length > 0 ? (
+          <View style={styles.savedSection}>
+            <Text style={[styles.savedLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>
+              CUENTAS GUARDADAS
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.savedAccountsRow}
+              keyboardShouldPersistTaps="handled"
+            >
+              {savedAccounts.map(account => (
+                <Pressable
+                  key={account.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Iniciar sesión como ${account.displayName}`}
+                  testID={`saved-account-${account.id}`}
+                  disabled={isLoading}
+                  onPress={() => loginWithSavedAccount(account)}
+                  style={({ pressed }) => [
+                    styles.savedAccountCard,
+                    { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed || isLoading ? 0.75 : 1 },
+                  ]}
+                >
+                  <View style={[styles.savedAvatar, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.savedInitial, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
+                      {(account.displayName || account.username).trim().charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={[styles.savedName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                    {account.displayName}
+                  </Text>
+                  <Text style={[styles.savedUsername, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                    {account.username}
+                  </Text>
+                </Pressable>
+              ))}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Agregar otra cuenta"
+                onPress={() => usernameRef.current?.focus()}
+                style={({ pressed }) => [
+                  styles.addAccountCard,
+                  { backgroundColor: colors.secondary, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
+                ]}
+              >
+                <View style={[styles.addAccountIcon, { backgroundColor: colors.card }]}>
+                  <Feather name="plus" size={21} color={colors.primary} />
+                </View>
+                <Text style={[styles.savedName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                  Agregar cuenta
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        ) : null}
 
         {/* Form card */}
         <View
@@ -127,6 +240,7 @@ export default function LoginScreen() {
           >
             <Feather name="user" size={16} color={colors.mutedForeground} style={styles.inputIcon} />
             <TextInput
+              ref={usernameRef}
               style={[
                 styles.input,
                 { color: colors.foreground, fontFamily: 'Inter_400Regular' },
@@ -167,7 +281,7 @@ export default function LoginScreen() {
               onChangeText={v => { setPassword(v); setError(null); }}
               secureTextEntry={!showPassword}
               returnKeyType="done"
-              onSubmitEditing={handleLogin}
+              onSubmitEditing={startLogin}
               editable={!isLoading}
             />
             <Pressable
@@ -220,8 +334,9 @@ export default function LoginScreen() {
                 opacity: pressed && !isLoading ? 0.9 : 1,
               },
             ]}
-            onPress={handleLogin}
+            onPress={startLogin}
             disabled={isLoading}
+            testID="campus-login-submit"
           >
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
@@ -246,15 +361,22 @@ export default function LoginScreen() {
         >
           Tus tareas se sincronizarán automáticamente
         </Text>
-      </View>
-    </KeyboardAvoidingView>
+        <SaveCampusAccountPrompt
+          visible={consentVisible}
+          canSave={canSaveCredentials}
+          username={username.trim()}
+          onSave={() => completeLogin(true)}
+          onContinueWithoutSaving={() => completeLogin(false)}
+          onCancel={() => setConsentVisible(false)}
+        />
+    </KeyboardAwareScrollViewCompat>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   inner: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
     gap: 20,
@@ -279,6 +401,34 @@ const styles = StyleSheet.create({
   appSubtitle: {
     fontSize: 14,
   },
+  savedSection: { gap: 9, marginBottom: 2 },
+  savedLabel: { fontSize: 10, letterSpacing: 1, marginLeft: 2 },
+  savedAccountsRow: { gap: 9, paddingVertical: 2 },
+  savedAccountCard: {
+    width: 112,
+    minHeight: 116,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 10,
+    gap: 5,
+  },
+  savedAvatar: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  savedInitial: { fontSize: 19 },
+  savedName: { maxWidth: '100%', fontSize: 11, textAlign: 'center' },
+  savedUsername: { maxWidth: '100%', fontSize: 9, textAlign: 'center' },
+  addAccountCard: {
+    width: 112,
+    minHeight: 116,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 10,
+    gap: 9,
+  },
+  addAccountIcon: { width: 43, height: 43, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   card: {
     padding: 24,
     borderWidth: 1,
