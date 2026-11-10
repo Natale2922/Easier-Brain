@@ -28,9 +28,9 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   low: 'Baja',
 };
 const DELIVERY_CONFIG = {
-  campus: { label: 'Campus Virtual', icon: 'monitor' as const, color: '#7C6FCD' },
-  email: { label: 'Correo', icon: 'mail' as const, color: '#3B82F6' },
-  class: { label: 'En clase', icon: 'users' as const, color: '#10B981' },
+  campus: { label: 'Campus Virtual', icon: 'monitor' as const, color: '#7056C7' },
+  email: { label: 'Correo', icon: 'mail' as const, color: '#5D75B8' },
+  class: { label: 'En clase', icon: 'users' as const, color: '#4E8A72' },
 };
 
 function formatFullDate(iso: string, time?: string): string {
@@ -110,9 +110,9 @@ export function TaskDetail({ task, onClose }: Props) {
           {/* Status + Source */}
           <View style={styles.topRow}>
             {task.completed ? (
-              <View style={[styles.statusChip, { backgroundColor: '#22C55E18' }]}>
-                <Feather name="check-circle" size={13} color="#22C55E" />
-                <Text style={[styles.statusText, { color: '#22C55E', fontFamily: 'Inter_600SemiBold' }]}>Completada</Text>
+              <View style={[styles.statusChip, { backgroundColor: colors.success + '18' }]}>
+                <Feather name="check-circle" size={13} color={colors.success} />
+                <Text style={[styles.statusText, { color: colors.success, fontFamily: 'Inter_600SemiBold' }]}>Completada</Text>
               </View>
             ) : isOverdue(task) ? (
               <View style={[styles.statusChip, { backgroundColor: colors.destructive + '18' }]}>
@@ -126,9 +126,9 @@ export function TaskDetail({ task, onClose }: Props) {
               </View>
             )}
             {task.source === 'university' && (
-              <View style={[styles.statusChip, { backgroundColor: '#10B98118' }]}>
-                <Feather name="globe" size={13} color="#10B981" />
-                <Text style={[styles.statusText, { color: '#10B981', fontFamily: 'Inter_600SemiBold' }]}>Campus Virtual</Text>
+              <View style={[styles.statusChip, { backgroundColor: colors.success + '18' }]}>
+                <Feather name="globe" size={13} color={colors.success} />
+                <Text style={[styles.statusText, { color: colors.success, fontFamily: 'Inter_600SemiBold' }]}>Campus Virtual</Text>
               </View>
             )}
           </View>
@@ -156,15 +156,15 @@ export function TaskDetail({ task, onClose }: Props) {
             {/* Due date */}
             {task.dueDate ? (
               <View style={[styles.infoCard, { backgroundColor: colors.card, borderRadius: 14 }]}>
-                <View style={[styles.infoIcon, { backgroundColor: (daysLeft?.color ?? '#22C55E') + '18' }]}>
-                  <Feather name="calendar" size={16} color={daysLeft?.color ?? '#22C55E'} />
+                <View style={[styles.infoIcon, { backgroundColor: (daysLeft?.color ?? colors.success) + '18' }]}>
+                  <Feather name="calendar" size={16} color={daysLeft?.color ?? colors.success} />
                 </View>
                 <View style={styles.infoText}>
                   <Text style={[styles.infoLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Fecha de entrega</Text>
                   <Text style={[styles.infoValue, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
                     {formatFullDate(task.dueDate, task.dueTime)}
                   </Text>
-                  <Text style={[styles.daysLeft, { color: daysLeft?.color ?? '#22C55E', fontFamily: 'Inter_500Medium' }]}>
+                  <Text style={[styles.daysLeft, { color: daysLeft?.color ?? colors.success, fontFamily: 'Inter_500Medium' }]}>
                     {daysLeft?.text}
                   </Text>
                 </View>

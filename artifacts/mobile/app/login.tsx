@@ -15,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { BrandMark } from '@/components/BrandMark';
+import { displayFontFamily } from '@/theme/typography';
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -70,10 +71,10 @@ export default function LoginScreen() {
           <Text
             style={[
               styles.appTitle,
-              { color: colors.foreground, fontFamily: 'Inter_700Bold' },
+              { color: colors.foreground, fontFamily: displayFontFamily },
             ]}
           >
-            Mis Tareas
+            Nuvo<Text style={{ color: colors.primary }}>.</Text>
           </Text>
           <Text
             style={[
@@ -271,8 +272,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   appTitle: {
-    fontSize: 28,
-    letterSpacing: -0.5,
+    fontSize: 31,
+    lineHeight: 37,
+    letterSpacing: -0.8,
   },
   appSubtitle: {
     fontSize: 14,

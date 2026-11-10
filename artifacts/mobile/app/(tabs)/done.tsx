@@ -86,11 +86,11 @@ export default function ArchiveScreen() {
         {overdueTasks.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <View style={[styles.sectionDot, { backgroundColor: '#FF7B7B' }]} />
+              <View style={[styles.sectionDot, { backgroundColor: colors.destructive }]} />
               <Text
                 style={[
                   styles.sectionTitle,
-                  { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' },
+                  { color: colors.destructive, fontFamily: 'Inter_600SemiBold' },
                 ]}
               >
                 Vencidas
@@ -111,7 +111,7 @@ export default function ArchiveScreen() {
                     <Text
                       style={[
                         styles.overdueDaysText,
-                        { color: '#FF7B7B', fontFamily: 'Inter_600SemiBold' },
+                        { color: colors.destructive, fontFamily: 'Inter_600SemiBold' },
                       ]}
                     >
                       {daysOverdue(task)}d vencida
@@ -132,11 +132,11 @@ export default function ArchiveScreen() {
         {completedTasks.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <View style={[styles.sectionDot, { backgroundColor: '#22C55E' }]} />
+              <View style={[styles.sectionDot, { backgroundColor: colors.success }]} />
               <Text
                 style={[
                   styles.sectionTitle,
-                  { color: '#22C55E', fontFamily: 'Inter_600SemiBold' },
+                  { color: colors.success, fontFamily: 'Inter_600SemiBold' },
                 ]}
               >
                 Completadas

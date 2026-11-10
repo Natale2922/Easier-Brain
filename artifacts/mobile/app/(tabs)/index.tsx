@@ -337,7 +337,7 @@ export default function TasksScreen() {
                 PROGRESO DE HOY
               </Text>
               <Text style={[styles.focusFooterValue, { color: colors.primaryForeground, fontFamily: 'Inter_600SemiBold' }]}>
-                {completedTodayCount} / {todayTaskTotal} completas
+                {completedTodayCount} de {todayTaskTotal} tareas
               </Text>
             </View>
             <View style={[styles.focusProgressTrack, { backgroundColor: colors.primaryForeground + '35' }]}>
@@ -351,27 +351,6 @@ export default function TasksScreen() {
             <MetricCard value={String(futureTaskCount)} label="próximas" colors={colors} />
             <MetricCard value={String(completedCount)} label="completadas" colors={colors} />
           </View>
-
-          {/* Smart input */}
-          <Pressable
-            onPress={() => setAiDialogVisible(true)}
-            style={({ pressed }) => [
-              styles.smartInput,
-              { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.86 : 1 },
-            ]}
-          >
-            <Feather name="star" size={17} color={colors.primary} />
-            <Text style={[styles.smartPlaceholder, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              Escribe o dicta lo que quieres hacer...
-            </Text>
-            <Feather name="mic" size={17} color={colors.primary} />
-            <View style={[styles.sendButton, { backgroundColor: colors.primary }]}>
-              <Feather name="arrow-up" size={16} color="#FFF" />
-            </View>
-          </Pressable>
-          <Text style={[styles.examples, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Ejemplos: Examen el viernes  ·  Tarea de inglés mañana
-          </Text>
 
           {/* Today */}
           <View style={styles.sectionHeader}>
@@ -437,8 +416,29 @@ export default function TasksScreen() {
             </View>
           )}
 
+          {/* Smart input */}
+          <Pressable
+            onPress={() => setAiDialogVisible(true)}
+            style={({ pressed }) => [
+              styles.smartInput,
+              { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.86 : 1 },
+            ]}
+          >
+            <Feather name="star" size={17} color={colors.primary} />
+            <Text style={[styles.smartPlaceholder, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Escribe o dicta lo que quieres hacer...
+            </Text>
+            <Feather name="mic" size={17} color={colors.primary} />
+            <View style={[styles.sendButton, { backgroundColor: colors.primary }]}>
+              <Feather name="arrow-up" size={16} color="#FFF" />
+            </View>
+          </Pressable>
+          <Text style={[styles.examples, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            Ejemplos: Examen el viernes  ·  Tarea de inglés mañana
+          </Text>
+
           <View style={styles.syncFooter}>
-            <View style={[styles.syncDot, { backgroundColor: syncError ? colors.destructive : isSyncing ? colors.primary : '#309A7D' }]} />
+            <View style={[styles.syncDot, { backgroundColor: syncError ? colors.destructive : isSyncing ? colors.primary : colors.success }]} />
             <Text style={[styles.syncText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{syncLabel}</Text>
             <Pressable onPress={doSync} disabled={isSyncing} hitSlop={8}>
               <Feather name="refresh-cw" size={14} color={colors.primary} />

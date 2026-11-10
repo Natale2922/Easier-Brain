@@ -20,6 +20,7 @@ import {
   type DeliveryMethod,
 } from "@/context/TasksContext";
 import { parseTaskFromText } from "@/utils/parseTask";
+import { displayFontFamily } from "@/theme/typography";
 
 const DELIVERY_LABELS: Record<string, string> = {
   campus: "🖥️ Campus Virtual",
@@ -161,7 +162,7 @@ export function AITaskDialog({ visible, onClose }: Props) {
               <Text
                 style={[
                   styles.title,
-                  { color: colors.foreground, fontFamily: "Inter_700Bold" },
+                  { color: colors.foreground, fontFamily: displayFontFamily },
                 ]}
               >
                 Asistente inteligente
@@ -193,7 +194,7 @@ export function AITaskDialog({ visible, onClose }: Props) {
             <View
               style={[
                 styles.examplesCard,
-                { backgroundColor: colors.card, borderRadius: 16 },
+                { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 18 },
               ]}
             >
               <Text
@@ -315,14 +316,14 @@ export function AITaskDialog({ visible, onClose }: Props) {
             <View
               style={[
                 styles.successBanner,
-                { backgroundColor: "#22C55E14", borderRadius: 14 },
+                { backgroundColor: colors.success + "18", borderRadius: 14 },
               ]}
             >
-              <Feather name="check-circle" size={16} color="#22C55E" />
+              <Feather name="check-circle" size={16} color={colors.success} />
               <Text
                 style={[
                   styles.successText,
-                  { color: "#22C55E", fontFamily: "Inter_500Medium" },
+                  { color: colors.success, fontFamily: "Inter_500Medium" },
                 ]}
               >
                 ¡Tarea analizada! Revisa y edita si es necesario.

@@ -19,6 +19,7 @@ import { AcademicProvider } from '@/context/AcademicContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { GradesProvider } from '@/context/GradesContext';
 import { useColors } from '@/hooks/useColors';
+import { displayFontFamily } from '@/theme/typography';
 
 // Set up API base URL for Expo (outside web proxy)
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
@@ -63,7 +64,7 @@ function RootLayoutNav() {
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.primary,
             headerTitleStyle: {
-              fontFamily: 'Inter_600SemiBold',
+              fontFamily: displayFontFamily,
               color: colors.foreground,
             },
           }}

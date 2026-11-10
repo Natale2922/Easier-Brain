@@ -22,6 +22,7 @@ import { digitizeScheduleImage, type DetectedBlock } from '@/utils/digitizeSched
 import { useAcademic } from '@/context/AcademicContext';
 import { useAuth } from '@/context/AuthContext';
 import { AppHeader, HeaderAction } from '@/components/common/AppHeader';
+import { displayFontFamily } from '@/theme/typography';
 
 const STORAGE_KEY = '@horario_v1';
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -29,12 +30,12 @@ const DAYS_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábad
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7:00 – 21:00
 
 const PASTEL_COLORS = [
-  '#FFD6E8', '#FFE5CC', '#D6F5E3', '#CCE8FF', '#E8D6FF',
-  '#FFF3CC', '#CCF5F0', '#FFD6CC', '#D6E8FF', '#F5FFD6',
+  '#F0DCE4', '#F2E5D8', '#DDEBE2', '#DCE5F3', '#E7DFF3',
+  '#F1EACF', '#D9ECE9', '#F2DFD8', '#DCE5EF', '#E5EBD8',
 ];
 const PASTEL_TEXT = [
-  '#C0547B', '#B8703A', '#2A8A5E', '#2563A8', '#6B3FA8',
-  '#A08020', '#1A8A80', '#B85A3A', '#2A5AA8', '#5A8A20',
+  '#9F5269', '#9B6943', '#4E8063', '#526F9F', '#735B9D',
+  '#8A742E', '#477E79', '#A26450', '#506E91', '#687A48',
 ];
 
 export interface ClassBlock {
@@ -350,7 +351,7 @@ export default function HorarioScreen() {
           <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
           <View style={styles.modalHeader}>
             <View>
-              <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: displayFontFamily }]}>
                 Clases detectadas
               </Text>
               <Text style={[styles.modalSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>

@@ -16,18 +16,19 @@ import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, type Priority, type DeliveryMethod } from '@/context/TasksContext';
+import { displayFontFamily } from '@/theme/typography';
 import { KeyboardAwareScrollViewCompat } from '@/components/common/KeyboardAwareScrollViewCompat';
 
 const PRIORITIES: { value: Priority; label: string; color: string; icon: string }[] = [
-  { value: 'high', label: 'Alta', color: '#FF7B7B', icon: 'alert-circle' },
-  { value: 'medium', label: 'Media', color: '#FFB347', icon: 'minus-circle' },
-  { value: 'low', label: 'Baja', color: '#5EC97E', icon: 'arrow-down-circle' },
+  { value: 'high', label: 'Alta', color: '#C26373', icon: 'alert-circle' },
+  { value: 'medium', label: 'Media', color: '#BB7B38', icon: 'minus-circle' },
+  { value: 'low', label: 'Baja', color: '#4E8A72', icon: 'arrow-down-circle' },
 ];
 
 const DELIVERY_OPTIONS: { value: DeliveryMethod; label: string; icon: string; color: string }[] = [
-  { value: 'campus', label: 'Campus Virtual', icon: 'monitor', color: '#7C6FCD' },
-  { value: 'email', label: 'Correo', icon: 'mail', color: '#3B82F6' },
-  { value: 'class', label: 'En clase', icon: 'users', color: '#10B981' },
+  { value: 'campus', label: 'Campus Virtual', icon: 'monitor', color: '#7056C7' },
+  { value: 'email', label: 'Correo', icon: 'mail', color: '#5D75B8' },
+  { value: 'class', label: 'En clase', icon: 'users', color: '#4E8A72' },
 ];
 
 const MONTHS = [
@@ -319,7 +320,7 @@ export default function AddTaskScreen() {
         <View style={[styles.pickerModal, { backgroundColor: colors.background }]}>
           <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Seleccionar materia</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: displayFontFamily }]}>Seleccionar materia</Text>
             <Pressable onPress={() => setSubjectPickerVisible(false)} hitSlop={10}>
               <Feather name="x" size={22} color={colors.mutedForeground} />
             </Pressable>
@@ -337,7 +338,7 @@ export default function AddTaskScreen() {
                     style={[styles.subjectOption, { backgroundColor: colors.card, borderColor: courseName === s ? colors.primary : colors.border, borderRadius: 14 }]}
                     onPress={() => { setCourseName(s); Haptics.selectionAsync(); setSubjectPickerVisible(false); }}
                   >
-                    <View style={[styles.subjectOptionDot, { backgroundColor: ['#FFD6E8','#FFE5CC','#D6F5E3','#CCE8FF','#E8D6FF','#FFF3CC','#CCF5F0','#FFD6CC','#D6E8FF','#F5FFD6'][i % 10] }]} />
+                    <View style={[styles.subjectOptionDot, { backgroundColor: colors.pastel[i % colors.pastel.length] }]} />
                     <Text style={[styles.subjectOptionText, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{s}</Text>
                     {courseName === s && <Feather name="check" size={16} color={colors.primary} />}
                   </Pressable>
