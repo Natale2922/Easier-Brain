@@ -61,6 +61,7 @@ export default function TabLayout() {
         name="calificaciones"
         options={{
           title: 'Calificaciones',
+          href: null,
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, { backgroundColor: focused ? colors.secondary : 'transparent' }]}>
               {isIOS ? <SymbolView name="graduationcap.fill" tintColor={color} size={20} /> : <Feather name="award" size={20} color={color} />}

@@ -16,6 +16,10 @@ import { TaskItem } from '@/components/tasks/TaskItem';
 import { TaskDetail } from '@/components/tasks/TaskDetail';
 import { AppHeader, HeaderAction } from '@/components/common/AppHeader';
 
+function normalizeSubjectName(value?: string) {
+  return value?.trim().toLocaleLowerCase('es-MX') ?? '';
+}
+
 function SubjectCard({
   subject,
   tasks,
@@ -34,7 +38,7 @@ function SubjectCard({
   const pending = tasks.filter(task => !task.completed);
   const completed = tasks.filter(task => task.completed);
   const progress = tasks.length ? Math.round((completed.length / tasks.length) * 100) : 0;
-  const classInfo = schedule.find(entry => entry.subject.trim().toLowerCase() === subject.name.trim().toLowerCase());
+  const classInfo = schedule.find(entry => normalizeSubjectName(entry.subject) === normalizeSubjectName(subject.name));
   const pastel = colors.pastel[subject.colorIndex % colors.pastel.length];
   const pastelText = colors.pastelText[subject.colorIndex % colors.pastelText.length];
 
@@ -111,23 +115,31 @@ export default function MateriasScreen() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const taskSubjects = useMemo(() => Array.from(new Set(tasks.map(task => task.courseName?.trim()).filter(Boolean) as string[])), [tasks]);
-  const subjectRecords = useMemo(() => {
-    const saved = new Map(subjects.map(subject => [subject.name.toLowerCase(), subject]));
-    return taskSubjects.map((name, index) => saved.get(name.toLowerCase()) ?? {
-      id: `temp_${name}`,
-      name,
-      colorIndex: index,
-      updatedAt: lastUpdatedAt ?? new Date().toISOString(),
+  const allSubjects = useMemo(() => {
+    const records = new Map<string, AcademicSubject>();
+    subjects.forEach(subject => {
+      records.set(normalizeSubjectName(subject.name), subject);
     });
+    taskSubjects.forEach((name, index) => {
+      const key = normalizeSubjectName(name);
+      if (!records.has(key)) {
+        records.set(key, {
+          id: `temp_${key}`,
+          name,
+          colorIndex: (subjects.length + index) % 10,
+          updatedAt: lastUpdatedAt ?? new Date().toISOString(),
+        });
+      }
+    });
+    return Array.from(records.values());
   }, [subjects, taskSubjects, lastUpdatedAt]);
-  const allSubjects = subjectRecords.length ? subjectRecords : subjects;
-  const filteredSubjects = allSubjects.filter(subject => subject.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const filteredSubjects = allSubjects.filter(subject => normalizeSubjectName(subject.name).includes(normalizeSubjectName(query)));
   const activeTasks = tasks.filter(task => !task.completed);
   const completedTasks = tasks.filter(task => task.completed);
   const upcoming = activeTasks.filter(task => task.dueDate && new Date(`${task.dueDate}T12:00:00`).getTime() >= Date.now()).length;
   const averageProgress = allSubjects.length
     ? Math.round(allSubjects.reduce((total, subject) => {
-      const related = tasks.filter(task => task.courseName?.toLowerCase() === subject.name.toLowerCase());
+      const related = tasks.filter(task => normalizeSubjectName(task.courseName) === normalizeSubjectName(subject.name));
       return total + (related.length ? (related.filter(task => task.completed).length / related.length) * 100 : 0);
     }, 0) / allSubjects.length)
     : 0;
@@ -170,8 +182,8 @@ export default function MateriasScreen() {
 
         <View style={styles.sectionHeading}>
           <View>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Tus materias</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Toca una tarjeta para ver sus tareas</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Tus materias</Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Guardadas durante el cuatrimestre · toca una tarjeta para ver sus tareas</Text>
           </View>
           <Text style={[styles.countText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{filteredSubjects.length} activas</Text>
         </View>
@@ -180,7 +192,7 @@ export default function MateriasScreen() {
           <View style={[styles.grid, { gap: 12 }]}>
             {filteredSubjects.map((subject, index) => (
               <View key={subject.id} style={{ width: width >= 560 ? '48.5%' : '100%' }}>
-                <SubjectCard subject={subject} tasks={tasks.filter(task => task.courseName?.toLowerCase() === subject.name.toLowerCase())} schedule={schedule} index={index} onSelectTask={setSelectedTask} />
+                <SubjectCard subject={subject} tasks={tasks.filter(task => normalizeSubjectName(task.courseName) === normalizeSubjectName(subject.name))} schedule={schedule} index={index} onSelectTask={setSelectedTask} />
               </View>
             ))}
           </View>

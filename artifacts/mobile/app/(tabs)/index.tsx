@@ -6,6 +6,7 @@ import {
   Dimensions,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useTasks, isOverdue, type Task } from '@/context/TasksContext';
@@ -25,6 +26,7 @@ import { TaskDetail } from '@/components/tasks/TaskDetail';
 import { AITaskDialog } from '@/components/ai/AITaskDialog';
 import { BrandLockup } from '@/components/BrandMark';
 import { useNotifications } from '@/hooks/useNotifications';
+import { loadCampusNotifications, recordCampusSessionIssue } from '@/utils/campusNotifications';
 import { displayFontFamily } from '@/theme/typography';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -104,6 +106,7 @@ export default function TasksScreen() {
   const {
     sessionToken,
     sesskey,
+    username,
     isAuthenticated,
     userFullname,
     logout,
@@ -116,6 +119,7 @@ export default function TasksScreen() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [aiDialogVisible, setAiDialogVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [logoutStep, setLogoutStep] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const drawerX = useRef(new Animated.Value(-Math.min(312, width * 0.84))).current;
@@ -164,11 +168,35 @@ export default function TasksScreen() {
   }, [isAuthenticated, sessionToken, sesskey, isSyncing, syncUniversityTasks, reloginSilently]);
 
   useEffect(() => {
-    scheduleBulkReminders(
-      tasks.filter(task => !task.completed && task.dueDate && !isOverdue(task)),
-    );
-    notifyCampusChanges(tasks);
-  }, [tasks, scheduleBulkReminders, notifyCampusChanges]);
+    scheduleBulkReminders(tasks.filter(task => !task.completed && task.dueDate && !isOverdue(task)));
+  }, [tasks, scheduleBulkReminders]);
+
+  useEffect(() => {
+    if (!username || !lastSyncAt) return;
+    let active = true;
+    void notifyCampusChanges(tasks, username).finally(async () => {
+      if (!active) return;
+      const notifications = await loadCampusNotifications(username);
+      setUnreadNotificationCount(notifications.filter(notification => !notification.read).length);
+    });
+    return () => { active = false; };
+  }, [tasks, lastSyncAt, username, notifyCampusChanges]);
+
+  useEffect(() => {
+    if (syncError !== 'SESSION_EXPIRED_FINAL' || !username) return;
+    void recordCampusSessionIssue(username).then(async () => {
+      const notifications = await loadCampusNotifications(username);
+      setUnreadNotificationCount(notifications.filter(notification => !notification.read).length);
+    });
+  }, [syncError, username]);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void loadCampusNotifications(username).then(notifications => {
+      if (active) setUnreadNotificationCount(notifications.filter(notification => !notification.read).length);
+    });
+    return () => { active = false; };
+  }, [username]));
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -229,6 +257,15 @@ export default function TasksScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: topInset, paddingBottom: bottomSpace }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isSyncing}
+            onRefresh={doSync}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+            progressBackgroundColor={colors.card}
+          />
+        }
       >
         <View style={styles.content}>
           {/* Header */}
@@ -251,15 +288,26 @@ export default function TasksScreen() {
             </View>
             <View style={styles.headerRight}>
               <Pressable
-                onPress={() => Haptics.selectionAsync()}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  router.push('/notifications');
+                }}
                 style={({ pressed }) => [
                   styles.headerIcon,
                   { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
                 ]}
-                accessibilityLabel="Notificaciones"
+                accessibilityRole="button"
+                accessibilityLabel={unreadNotificationCount ? `Notificaciones, ${unreadNotificationCount} sin leer` : 'Notificaciones'}
+                testID="open-notifications"
               >
                 <Feather name="bell" size={18} color={colors.foreground} />
-                {overdueCount > 0 && <View style={[styles.notificationDot, { backgroundColor: colors.destructive }]} />}
+                {unreadNotificationCount > 0 && (
+                  <View style={[styles.notificationBadge, { backgroundColor: colors.destructive }]}>
+                    <Text style={[styles.notificationBadgeText, { color: colors.destructiveForeground }]}>
+                      {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                    </Text>
+                  </View>
+                )}
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -292,6 +340,29 @@ export default function TasksScreen() {
               {getGreeting()}, {firstName}. Tienes espacio para lo importante.
             </Text>
           </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Crear una tarea con ayuda de inteligencia artificial"
+            testID="open-ai-task-input"
+            onPress={() => setAiDialogVisible(true)}
+            style={({ pressed }) => [
+              styles.smartInput,
+              { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.86 : 1 },
+            ]}
+          >
+            <Feather name="star" size={17} color={colors.primary} />
+            <Text style={[styles.smartPlaceholder, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              Escribe o dicta lo que quieres hacer...
+            </Text>
+            <Feather name="mic" size={17} color={colors.primary} />
+            <View style={[styles.sendButton, { backgroundColor: colors.primary }]}>
+              <Feather name="arrow-up" size={16} color="#FFF" />
+            </View>
+          </Pressable>
+          <Text style={[styles.examples, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            Ejemplos: Examen el viernes  ·  Tarea de inglés mañana
+          </Text>
 
           <View style={[styles.focusCard, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
             <View style={styles.focusTop}>
@@ -424,27 +495,6 @@ export default function TasksScreen() {
               <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>No tienes próximos eventos con fecha.</Text>
             </View>
           )}
-
-          {/* Smart input */}
-          <Pressable
-            onPress={() => setAiDialogVisible(true)}
-            style={({ pressed }) => [
-              styles.smartInput,
-              { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.86 : 1 },
-            ]}
-          >
-            <Feather name="star" size={17} color={colors.primary} />
-            <Text style={[styles.smartPlaceholder, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-              Escribe o dicta lo que quieres hacer...
-            </Text>
-            <Feather name="mic" size={17} color={colors.primary} />
-            <View style={[styles.sendButton, { backgroundColor: colors.primary }]}>
-              <Feather name="arrow-up" size={16} color="#FFF" />
-            </View>
-          </Pressable>
-          <Text style={[styles.examples, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-            Ejemplos: Examen el viernes  ·  Tarea de inglés mañana
-          </Text>
 
           <View style={styles.syncFooter}>
             <View style={[styles.syncDot, { backgroundColor: syncError ? colors.destructive : isSyncing ? colors.primary : colors.success }]} />
@@ -595,7 +645,8 @@ const styles = StyleSheet.create({
   brandGroup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIcon: { width: 40, height: 40, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  notificationDot: { position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#FFF' },
+  notificationBadge: { position: 'absolute', top: -3, right: -4, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  notificationBadgeText: { fontSize: 9, fontWeight: '700' },
   avatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 16 },
   intro: { marginBottom: 18 },

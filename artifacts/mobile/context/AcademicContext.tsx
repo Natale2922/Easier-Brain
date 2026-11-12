@@ -46,7 +46,15 @@ function subjectId(name: string) {
 }
 
 export function AcademicProvider({ children }: { children: React.ReactNode }) {
-  const [store, setStore] = useState<AcademicStore>(EMPTY_STORE);
+  const [store, setStoreState] = useState<AcademicStore>(EMPTY_STORE);
+  const storeRef = useRef(EMPTY_STORE);
+  const setStore = useCallback((update: React.SetStateAction<AcademicStore>) => {
+    const next = typeof update === 'function'
+      ? (update as (current: AcademicStore) => AcademicStore)(storeRef.current)
+      : update;
+    storeRef.current = next;
+    setStoreState(next);
+  }, []);
   const loadGeneration = useRef(0);
 
   useEffect(() => {
@@ -54,40 +62,67 @@ export function AcademicProvider({ children }: { children: React.ReactNode }) {
     let alive = true;
     AsyncStorage.getItem(STORAGE_KEY)
       .then(raw => {
-        if (!alive || generation !== loadGeneration.current || !raw) return;
-        setStore({ ...EMPTY_STORE, ...JSON.parse(raw) });
+        if (!alive || generation !== loadGeneration.current) return;
+        let saved = EMPTY_STORE;
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<AcademicStore>;
+          saved = {
+            subjects: Array.isArray(parsed.subjects)
+              ? parsed.subjects.filter(subject => subject && typeof subject.id === 'string' && typeof subject.name === 'string')
+              : [],
+            schedule: Array.isArray(parsed.schedule) ? parsed.schedule : [],
+            lastUpdatedAt: typeof parsed.lastUpdatedAt === 'string' ? parsed.lastUpdatedAt : null,
+          };
+        }
+        const current = storeRef.current;
+        const subjectIds = new Set(saved.subjects.map(subject => subject.id));
+        const subjects = [
+          ...saved.subjects,
+          ...current.subjects.filter(subject => !subjectIds.has(subject.id)),
+        ];
+        const next = {
+          ...saved,
+          subjects,
+          schedule: current.schedule.length ? current.schedule : saved.schedule,
+          lastUpdatedAt: current.lastUpdatedAt ?? saved.lastUpdatedAt,
+        };
+        setStore(next);
+        if (current.subjects.length || current.schedule.length || current.lastUpdatedAt) {
+          AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+        }
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [setStore]);
 
   const persist = useCallback((next: AcademicStore) => {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
   }, []);
 
   const syncSubjectsFromTasks = useCallback((tasks: Array<{ courseName?: string }>) => {
-    const names = Array.from(
-      new Set(tasks.map(task => task.courseName?.trim()).filter((name): name is string => !!name)),
-    );
+    const namesById = new Map<string, string>();
+    tasks.forEach(task => {
+      const name = task.courseName?.trim();
+      if (name && !namesById.has(subjectId(name))) namesById.set(subjectId(name), name);
+    });
+    const names = Array.from(namesById.values());
     if (!names.length) return;
     setStore(current => {
-      const existing = new Map(current.subjects.map(subject => [subject.id, subject]));
+      const existingIds = new Set(current.subjects.map(subject => subject.id));
+      const missingNames = names.filter(name => !existingIds.has(subjectId(name)));
+      if (!missingNames.length) return current;
       const now = new Date().toISOString();
-      const subjects = names.map((name, index) => {
-        const saved = existing.get(subjectId(name));
-        return saved ?? {
+      const additions = missingNames.map((name, index) => ({
           id: subjectId(name),
           name,
-          colorIndex: index % 10,
+          colorIndex: (current.subjects.length + index) % 10,
           updatedAt: now,
-        };
-      });
-      const merged = [...subjects, ...current.subjects.filter(subject => !names.some(name => subject.id === subjectId(name)))];
-      const next = { ...current, subjects: merged, lastUpdatedAt: now };
+        }));
+      const next = { ...current, subjects: [...current.subjects, ...additions], lastUpdatedAt: now };
       persist(next);
       return next;
     });
-  }, [persist]);
+  }, [persist, setStore]);
 
   const saveSchedule = useCallback((schedule: AcademicScheduleEntry[]) => {
     setStore(current => {
@@ -95,7 +130,7 @@ export function AcademicProvider({ children }: { children: React.ReactNode }) {
       persist(next);
       return next;
     });
-  }, [persist]);
+  }, [persist, setStore]);
 
   const updateSubjectDetails = useCallback((name: string, details: { teacher?: string; room?: string }) => {
     setStore(current => {
@@ -109,13 +144,13 @@ export function AcademicProvider({ children }: { children: React.ReactNode }) {
       persist(next);
       return next;
     });
-  }, [persist]);
+  }, [persist, setStore]);
 
   const clearCampusData = useCallback(async () => {
     loadGeneration.current += 1;
     setStore(EMPTY_STORE);
     await AsyncStorage.multiRemove([STORAGE_KEY, SCHEDULE_STORAGE_KEY]);
-  }, []);
+  }, [setStore]);
 
   return (
     <AcademicContext.Provider value={{ ...store, syncSubjectsFromTasks, saveSchedule, updateSubjectDetails, clearCampusData }}>

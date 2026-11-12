@@ -1,8 +1,9 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Task } from '@/context/TasksContext';
 import { parseTaskDueDate } from '@/utils/date';
+import { campusTaskSnapshotKey, recordCampusNotifications } from '@/utils/campusNotifications';
 
 // Dynamically import expo-notifications to avoid crashes if not available
 let Notifications: any = null;
@@ -12,36 +13,64 @@ try {
   Notifications = null;
 }
 
-const CAMPUS_SNAPSHOT_KEY = '@nuvo_campus_task_snapshot_v1';
+function setCampusNotificationHandler() {
+  Notifications?.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+}
+
+async function deviceNotificationsGranted() {
+  if (!Notifications || Platform.OS === 'web') return false;
+  try {
+    const permission = await Notifications.getPermissionsAsync();
+    return permission.granted || permission.status === 'granted';
+  } catch {
+    return false;
+  }
+}
 
 export function useNotifications() {
+  const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(false);
+  const [deviceNotificationsCanAskAgain, setDeviceNotificationsCanAskAgain] = useState(true);
+
   useEffect(() => {
     if (!Notifications || Platform.OS === 'web') return;
     (async () => {
       try {
-        const { status } = await Notifications.getPermissionsAsync();
-        if (status !== 'granted') {
-          await Notifications.requestPermissionsAsync();
-        }
-        Notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
-          }),
-        });
+        const permission = await Notifications.getPermissionsAsync();
+        const granted = permission.granted || permission.status === 'granted';
+        setDeviceNotificationsEnabled(granted);
+        setDeviceNotificationsCanAskAgain(permission.canAskAgain ?? true);
+        if (granted) setCampusNotificationHandler();
       } catch {}
     })();
+  }, []);
+
+  const enableDeviceNotifications = useCallback(async () => {
+    if (!Notifications || Platform.OS === 'web') return false;
+    try {
+      let permission = await Notifications.getPermissionsAsync();
+      if (!permission.granted && permission.status !== 'granted') {
+        permission = await Notifications.requestPermissionsAsync();
+      }
+      const granted = permission.granted || permission.status === 'granted';
+      setDeviceNotificationsEnabled(granted);
+      setDeviceNotificationsCanAskAgain(permission.canAskAgain ?? true);
+      if (granted) setCampusNotificationHandler();
+      return granted;
+    } catch {
+      return false;
+    }
   }, []);
 
   const scheduleReminder = useCallback(async (task: Task) => {
     if (!Notifications || Platform.OS === 'web' || !task.dueDate) return false;
     try {
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status !== 'granted') {
-        const { status: newStatus } = await Notifications.requestPermissionsAsync();
-        if (newStatus !== 'granted') return false;
-      }
+      if (!(await deviceNotificationsGranted())) return false;
 
       const dueDate = parseTaskDueDate(task.dueDate, task.dueTime);
       if (!dueDate) return false;
@@ -112,6 +141,7 @@ export function useNotifications() {
   const scheduleBulkReminders = useCallback(async (tasks: Task[]) => {
     if (!Notifications || Platform.OS === 'web') return;
     try {
+      if (!(await deviceNotificationsGranted())) return;
       await Notifications.cancelAllScheduledNotificationsAsync();
       const pending = tasks.filter(t => !t.completed && t.dueDate);
       for (const task of pending.slice(0, 20)) { // limit to 20 to avoid OS limits
@@ -120,8 +150,8 @@ export function useNotifications() {
     } catch {}
   }, [scheduleReminder]);
 
-  const notifyCampusChanges = useCallback(async (tasks: Task[]) => {
-    if (!Notifications || Platform.OS === 'web') return;
+  const notifyCampusChanges = useCallback(async (tasks: Task[], username: string | null) => {
+    if (!username) return;
     try {
       const current = Object.fromEntries(
         tasks
@@ -133,26 +163,60 @@ export function useNotifications() {
               courseName: task.courseName ?? '',
               dueDate: task.dueDate ?? '',
               dueTime: task.dueTime ?? '',
+              instructions: task.instructions ?? '',
+              campusUrl: task.campusUrl ?? '',
             },
           ]),
       );
-      const previousRaw = await AsyncStorage.getItem(CAMPUS_SNAPSHOT_KEY);
-      await AsyncStorage.setItem(CAMPUS_SNAPSHOT_KEY, JSON.stringify(current));
+      const snapshotKey = campusTaskSnapshotKey(username);
+      const previousRaw = await AsyncStorage.getItem(snapshotKey);
+      await AsyncStorage.setItem(snapshotKey, JSON.stringify(current));
       if (!previousRaw) return;
 
-      const previous = JSON.parse(previousRaw) as Record<string, typeof current[string]>;
+      let previous: Record<string, typeof current[string]>;
+      try {
+        previous = JSON.parse(previousRaw);
+      } catch {
+        return;
+      }
       const changes = Object.entries(current).filter(([id, value]) => {
         const old = previous[id];
         return !old || JSON.stringify(old) !== JSON.stringify(value);
       });
 
-      for (const [id, value] of changes.slice(0, 8)) {
+      const changedEntries = changes.map(([id, value]) => {
         const isNew = !previous[id];
+        return {
+          type: isNew ? 'task_added' as const : 'task_updated' as const,
+          title: isNew ? 'Nueva tarea del campus' : 'Tarea actualizada',
+          body: `"${value.title}"${value.courseName ? ` · ${value.courseName}` : ''}`,
+          taskId: id,
+          campusUrl: value.campusUrl || undefined,
+        };
+      });
+      const today = new Date();
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const removedEntries = Object.entries(previous)
+        .filter(([id, value]) => !current[id] && !!value.dueDate && value.dueDate >= todayKey)
+        .map(([id, value]) => ({
+          type: 'task_removed' as const,
+          title: 'Tarea retirada del campus',
+          body: `"${value.title}"${value.courseName ? ` · ${value.courseName}` : ''}`,
+          taskId: id,
+          campusUrl: value.campusUrl || undefined,
+        }));
+      const entries = [...changedEntries, ...removedEntries];
+      if (entries.length) {
+        await recordCampusNotifications(username, entries);
+      }
+
+      if (!Notifications || Platform.OS === 'web' || !(await deviceNotificationsGranted())) return;
+      for (const entry of entries.slice(0, 8)) {
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: isNew ? '✨ Nueva tarea en el campus' : '🔔 Tarea actualizada',
-            body: `"${value.title}"${value.courseName ? ` — ${value.courseName}` : ''}`,
-            data: { taskId: id, source: 'university' },
+            title: entry.title,
+            body: entry.body,
+            data: { taskId: entry.taskId, source: 'university', type: entry.type },
           },
           trigger: null,
         });
@@ -162,5 +226,13 @@ export function useNotifications() {
     }
   }, []);
 
-  return { scheduleReminder, cancelAllReminders, scheduleBulkReminders, notifyCampusChanges };
+  return {
+    scheduleReminder,
+    cancelAllReminders,
+    scheduleBulkReminders,
+    notifyCampusChanges,
+    deviceNotificationsEnabled,
+    deviceNotificationsCanAskAgain,
+    enableDeviceNotifications,
+  };
 }
